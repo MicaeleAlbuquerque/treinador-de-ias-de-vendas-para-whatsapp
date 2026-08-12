@@ -1,0 +1,110 @@
+/* Assina.ai UI kit — cosmetic styles, all tokens from colors_and_type.css */
+
+/* ── Buttons ── */
+.vi-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;
+  border:1px solid transparent;border-radius:var(--radius-md);font:var(--text-button);font-weight:500;cursor:pointer;
+  transition:background .18s, box-shadow .18s, transform .18s, color .18s;text-decoration:none}
+.vi-btn--md{height:36px;padding:0 16px;font-size:14px}
+.vi-btn--lg{height:44px;padding:0 28px;font-size:15px}
+.vi-btn--sm{height:30px;padding:0 12px;font-size:12px}
+.vi-btn--icon{width:36px;height:36px;padding:0}
+.vi-btn--accent{background:var(--accent-primary);color:#fff;box-shadow:var(--shadow-accent-glow)}
+.vi-btn--accent:hover{background:var(--accent-primary-hover);box-shadow:var(--shadow-accent-glow-lg);transform:translateY(-1px)}
+.vi-btn--primary{background:var(--text-primary);color:#fff}
+.vi-btn--primary:hover{background:oklch(0.28 0.058 248)}
+.vi-btn--outline{background:var(--bg-elevated);color:var(--text-primary);border-color:var(--border-default);box-shadow:var(--shadow-elevation-1)}
+.vi-btn--outline:hover{background:var(--bg-surface-1)}
+.vi-btn--ghost{background:transparent;color:var(--text-primary)}
+.vi-btn--ghost:hover{background:color-mix(in oklch, var(--accent-primary) 8%, transparent)}
+.vi-btn--destructive{background:oklch(0.577 0.245 27.325);color:#fff}
+.vi-btn--destructive:hover{background:oklch(0.52 0.245 27.325)}
+.vi-btn--ghost-clean{background:transparent;color:rgba(255,255,255,.9);border:1px solid rgba(255,255,255,.2);height:44px;padding:0 28px;font-size:15px;border-radius:var(--radius-md)}
+.vi-btn--ghost-clean:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.35)}
+
+/* ── Badges ── */
+.vi-badge{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 10px;border-radius:var(--radius-md);
+  font:var(--text-badge);border:1px solid;font-weight:600}
+.vi-badge--gray{background:oklch(0.89 0 0);color:var(--text-secondary);border-color:var(--border-default)}
+.vi-badge--blue{background:color-mix(in oklch, var(--accent-primary) 10%, transparent);color:var(--accent-primary);border-color:color-mix(in oklch, var(--accent-primary) 22%, transparent)}
+.vi-badge--green{background:color-mix(in oklch, var(--accent-success) 12%, transparent);color:oklch(0.46 0.152 163);border-color:color-mix(in oklch, var(--accent-success) 28%, transparent)}
+.vi-badge--yellow{background:color-mix(in oklch, var(--accent-warm) 16%, transparent);color:oklch(0.48 0.164 80);border-color:color-mix(in oklch, var(--accent-warm) 30%, transparent)}
+.vi-badge--red{background:color-mix(in oklch, oklch(0.577 0.245 27.325) 10%, transparent);color:oklch(0.577 0.245 27.325);border-color:color-mix(in oklch, oklch(0.577 0.245 27.325) 22%, transparent)}
+.vi-badge--orange{background:color-mix(in oklch, var(--accent-warm) 22%, transparent);color:oklch(0.43 0.164 60);border-color:color-mix(in oklch, var(--accent-warm) 38%, transparent)}
+
+/* ── Card ── */
+.vi-card{background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:12px;
+  box-shadow:var(--shadow-elevation-2);padding:20px}
+.vi-card--dark{background:oklch(0.21 0.04 248);border-color:rgba(255,255,255,.08);color:var(--text-on-dark);border-radius:12px;padding:24px}
+
+/* ── Inputs ── */
+.vi-input{height:36px;padding:0 12px;border:1px solid var(--border-default);border-radius:var(--radius-md);
+  background:var(--bg-elevated);font:var(--text-body-sm);color:var(--text-primary);outline:none;width:100%;
+  transition:border-color .15s, box-shadow .15s}
+.vi-input:focus{border-color:var(--accent-primary);box-shadow:0 0 0 3px color-mix(in oklch, var(--accent-primary) 18%, transparent)}
+.vi-label{font:var(--text-caption);font-weight:500;color:var(--text-primary);display:block;margin-bottom:6px}
+
+/* ── App shell ── */
+.vi-shell{display:flex;min-height:100vh;background:var(--bg-base)}
+.vi-sidebar{width:256px;flex-shrink:0;background:var(--bg-darkest);border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;color:var(--text-on-dark)}
+.vi-sidebar__brand{display:flex;align-items:center;gap:10px;padding:20px 24px;border-bottom:1px solid rgba(255,255,255,.08)}
+.vi-sidebar__brand b{color:#fff;font-weight:700;font-size:18px}
+.vi-sidebar__brand i{color:var(--accent-primary-light)}
+.vi-sidebar__nav{flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:2px}
+.vi-sidebar__item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;font:var(--text-body-sm);font-weight:500;color:rgba(255,255,255,.55);cursor:pointer;transition:background .15s, color .15s;border:none;background:transparent;text-align:left;width:100%}
+.vi-sidebar__item:hover{background:color-mix(in oklch, oklch(0.178 0.058 248) 60%, transparent);color:rgba(255,255,255,.92)}
+.vi-sidebar__item.active{background:oklch(0.178 0.058 248);color:var(--accent-primary-light)}
+.vi-sidebar__foot{border-top:1px solid rgba(255,255,255,.08);padding:12px}
+
+.vi-main{flex:1;display:flex;flex-direction:column;min-width:0}
+.vi-header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;background:var(--bg-elevated);border-bottom:1px solid var(--border-subtle);box-shadow:var(--shadow-elevation-1)}
+.vi-header h1{font:var(--text-h4);margin:0;color:var(--text-primary)}
+.vi-header__actions{display:flex;align-items:center;gap:14px}
+.vi-content{padding:28px;display:flex;flex-direction:column;gap:24px;flex:1}
+
+/* ── Data table ── */
+.vi-table{width:100%;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:12px;overflow:hidden;box-shadow:var(--shadow-elevation-1)}
+.vi-table__head,.vi-table__row{display:grid;grid-template-columns:36px 2fr 1.5fr 1fr 120px 120px;align-items:center;gap:12px;padding:12px 16px}
+.vi-table__head{background:var(--bg-surface-1);border-bottom:1px solid var(--border-subtle);font:var(--text-caption);font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em}
+.vi-table__row{border-bottom:1px solid var(--border-subtle);font:var(--text-body-sm);color:var(--text-primary);cursor:pointer;transition:background .12s}
+.vi-table__row:last-child{border-bottom:0}
+.vi-table__row:hover{background:color-mix(in oklch, var(--accent-primary) 4%, transparent)}
+.vi-table__row.selected{background:color-mix(in oklch, var(--accent-primary) 7%, transparent)}
+
+/* ── Checkbox ── */
+.vi-check{width:16px;height:16px;border:1px solid var(--border-default);border-radius:4px;background:var(--bg-elevated);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.vi-check.checked{background:var(--accent-primary);border-color:var(--accent-primary);color:#fff}
+
+/* ── Select ── */
+.vi-select{display:inline-flex;align-items:center;justify-content:space-between;min-width:180px;height:36px;padding:0 12px;border:1px solid var(--border-default);border-radius:var(--radius-md);background:var(--bg-elevated);font:var(--text-body-sm);color:var(--text-primary);gap:10px;cursor:pointer}
+.vi-select--light i{color:var(--text-tertiary)}
+
+/* ── Selection toolbar ── */
+.vi-select-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;
+  background:color-mix(in oklch, oklch(0.89 0 0) 50%, var(--bg-elevated));
+  border:1px solid var(--border-default);border-radius:10px;animation:vi-slide .25s ease both}
+@keyframes vi-slide{from{transform:translateY(-6px);opacity:0}to{transform:none;opacity:1}}
+
+/* ── Landing page ── */
+.vi-lp-nav{display:flex;align-items:center;justify-content:space-between;padding:16px 48px}
+.vi-lp-brand{display:flex;align-items:center;gap:10px}
+.vi-lp-brand i{color:var(--accent-primary)}
+.vi-lp-brand b{font-size:20px;font-weight:700;color:var(--text-primary)}
+.vi-lp-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:80px 24px 120px}
+.vi-lp-hero h1{font:700 clamp(2.25rem, 4vw + 1rem, 3rem)/1.1 var(--font-sans);letter-spacing:-0.02em;margin:0;max-width:680px;color:var(--text-primary)}
+.vi-lp-hero p{font:400 1.125rem/1.5 var(--font-sans);color:var(--text-tertiary);max-width:540px;margin-top:16px}
+.vi-lp-features{background:var(--bg-surface-1);padding:72px 24px}
+.vi-lp-features__grid{max-width:1024px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.vi-lp-feature{background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:12px;padding:28px;text-align:center;box-shadow:var(--shadow-elevation-1)}
+.vi-lp-feature__icon{width:48px;height:48px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:color-mix(in oklch, var(--accent-primary) 12%, transparent);color:var(--accent-primary);margin:0 auto 12px}
+.vi-lp-feature h3{font:600 18px/1.3 var(--font-sans);margin:0 0 6px;color:var(--text-primary)}
+.vi-lp-feature p{font:var(--text-body-sm);color:var(--text-tertiary);margin:0}
+.vi-lp-foot{padding:28px;text-align:center;color:var(--text-tertiary);font:var(--text-caption)}
+
+/* ── Login ── */
+.vi-login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg-base);padding:32px}
+.vi-login__card{width:100%;max-width:420px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:14px;box-shadow:var(--shadow-elevation-3);padding:36px}
+.vi-login__brand{display:flex;justify-content:center;margin-bottom:24px}
+.vi-login__tabs{display:flex;background:var(--bg-surface-2);border-radius:8px;padding:3px;margin-bottom:20px}
+.vi-login__tab{flex:1;text-align:center;padding:7px 10px;border-radius:6px;font:var(--text-body-sm);font-weight:500;color:var(--text-tertiary);cursor:pointer;transition:all .15s;border:none;background:transparent}
+.vi-login__tab.active{background:var(--bg-elevated);color:var(--text-primary);box-shadow:var(--shadow-elevation-1)}
+.vi-field{display:flex;flex-direction:column;margin-bottom:14px}

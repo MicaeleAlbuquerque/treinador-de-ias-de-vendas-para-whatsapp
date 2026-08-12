@@ -1,0 +1,293 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system: Viver de IA.
+ * Tokens canônicos em --via-*. Mapeamos --background/--primary/etc.
+ * (consumidos pelo shadcn) para os tokens da marca.
+ * Cores em HSL pra continuar compatível com utilitários alpha do Tailwind.
+ */
+
+/* ===== Fontes Avenir LT Std (locais) ===== */
+@font-face {
+  font-family: 'Avenir LT Std';
+  src: url('/fonts/AvenirLTStd-Light.otf') format('opentype');
+  font-weight: 300; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Avenir LT Std';
+  src: url('/fonts/AvenirLTStd-LightOblique.otf') format('opentype');
+  font-weight: 300; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: 'Avenir LT Std';
+  src: url('/fonts/AvenirLTStd-Roman.otf') format('opentype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Avenir LT Std';
+  src: url('/fonts/AvenirLTStd-Oblique.otf') format('opentype');
+  font-weight: 400; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: 'Avenir LT Std';
+  src: url('/fonts/AvenirLTStd-Heavy.otf') format('opentype');
+  font-weight: 700 900; font-style: normal; font-display: swap;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: 'Avenir LT Std', 'Avenir Next', Avenir, 'Helvetica Neue', system-ui, sans-serif;
+}
+
+:root {
+  /* ---- Tokens Viver de IA (canônicos) ---- */
+  --via-navy: #02162A;
+  --via-navy-80: rgba(2, 22, 42, 0.80);
+  --via-navy-40: rgba(2, 22, 42, 0.40);
+  --via-navy-15: rgba(2, 22, 42, 0.15);
+  --via-navy-06: rgba(2, 22, 42, 0.06);
+  --via-blue: #0A4F95;
+  --via-blue-light: #E8F0FB;
+  --via-white: #FFFFFF;
+  --via-bg: #F9F9F9;
+  --via-bg-2: #F0F2F5;
+  --via-success: #1F8A5C;
+  --via-success-bg: #E6F4ED;
+  --via-warning: #B8740D;
+  --via-warning-bg: #FBF0DF;
+  --via-danger: #B63A2F;
+  --via-danger-bg: #FBEBE8;
+  --via-text-body: #1C2B3A;
+  --via-text-muted: #6B7A8D;
+  --via-radius-sm: 4px;
+  --via-radius-md: 8px;
+  --via-radius-lg: 12px;
+  --via-radius-xl: 20px;
+  --via-radius-2xl: 32px;
+  --via-radius-pill: 999px;
+  --via-shadow-card: 0 1px 3px rgba(2,22,42,0.08), 0 4px 16px rgba(2,22,42,0.06);
+  --via-shadow-raised: 0 8px 32px rgba(2,22,42,0.12);
+  --via-shadow-focus: 0 0 0 3px rgba(10,79,149,0.25);
+  --via-ls-brand: 0.22em;
+  --via-ls-label: 0.12em;
+  --via-ls-wide: 0.06em;
+
+  /* ---- Bridge para tokens shadcn (oklch da paleta da marca) ---- */
+  --radius: 0.75rem; /* 12px = --via-radius-lg */
+  --background: oklch(0.978 0 0);            /* #F9F9F9 */
+  --foreground: oklch(0.184 0.034 254);      /* #02162A */
+  --card: oklch(1 0 0);                       /* #FFFFFF */
+  --card-foreground: oklch(0.184 0.034 254);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.184 0.034 254);
+  --primary: oklch(0.184 0.034 254);          /* navy */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.955 0.008 250);        /* bg-2 */
+  --secondary-foreground: oklch(0.184 0.034 254);
+  --muted: oklch(0.955 0.008 250);
+  --muted-foreground: oklch(0.55 0.022 250);  /* #6B7A8D */
+  --accent: oklch(0.40 0.118 250);            /* via-blue #0A4F95 */
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.52 0.16 27);         /* via-danger */
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.184 0.034 254 / 0.15);    /* navy-15 */
+  --input: oklch(0.184 0.034 254 / 0.15);
+  --ring: oklch(0.40 0.118 250);
+  --chart-1: oklch(0.40 0.118 250);
+  --chart-2: oklch(0.55 0.13 160);
+  --chart-3: oklch(0.65 0.14 70);
+  --chart-4: oklch(0.55 0.18 28);
+  --chart-5: oklch(0.45 0.16 305);
+  --sidebar: oklch(0.184 0.034 254);          /* navy */
+  --sidebar-foreground: oklch(0.96 0 0);
+  --sidebar-primary: oklch(0.40 0.118 250);   /* blue */
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.184 0.034 254 / 0.55);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(1 0 0 / 0.10);
+  --sidebar-ring: oklch(0.40 0.118 250);
+}
+
+.dark {
+  /* Modo escuro espelhado em navy (paleta da marca Viver de IA) */
+  --background: #02162a;
+  --foreground: #ffffff;
+  --card: #0a2540;
+  --card-foreground: #ffffff;
+  --popover: #0a2540;
+  --popover-foreground: #ffffff;
+  --primary: #ffffff;
+  --primary-foreground: #02162a;
+  --secondary: rgba(255, 255, 255, 0.08);
+  --secondary-foreground: #ffffff;
+  --muted: rgba(255, 255, 255, 0.08);
+  --muted-foreground: rgba(255, 255, 255, 0.65);
+  --accent: #0a4f95;
+  --accent-foreground: #ffffff;
+  --destructive: #b63a2f;
+  --destructive-foreground: #ffffff;
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.18);
+  --ring: #5ea4f3;
+  --sidebar: #0a2540;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #0a4f95;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.10);
+  --sidebar-ring: #5ea4f3;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-weight: 300;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4 {
+    font-weight: 900;
+    color: var(--via-navy);
+    line-height: 1.1;
+  }
+}
+
+/* ============================================================
+   Utilitários Viver de IA (uso direto em qualquer componente)
+   ============================================================ */
+
+.via-wordmark {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  letter-spacing: var(--via-ls-brand);
+  text-transform: uppercase;
+}
+
+.via-label {
+  font-size: 0.625rem;
+  font-weight: 900;
+  letter-spacing: var(--via-ls-label);
+  text-transform: uppercase;
+  color: var(--via-text-muted);
+}
+
+.via-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  font-family: var(--font-sans); font-size: 0.875rem; font-weight: 900;
+  letter-spacing: var(--via-ls-wide); text-transform: uppercase;
+  border: none; border-radius: var(--via-radius-pill);
+  padding: 0.75rem 1.5rem; cursor: pointer; line-height: 1;
+  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+  white-space: nowrap; text-decoration: none;
+}
+.via-btn:active { transform: scale(0.98); }
+.via-btn-primary { background: var(--via-navy); color: var(--via-white); }
+.via-btn-primary:hover { background: #0a2540; box-shadow: 0 4px 16px rgba(2,22,42,.25); }
+.via-btn-secondary { background: transparent; color: var(--via-navy); border: 1px solid var(--via-navy-40); }
+.via-btn-secondary:hover { background: var(--via-navy-06); border-color: var(--via-navy); }
+.via-btn-ghost { background: transparent; color: var(--via-white); border: 1px solid rgba(255,255,255,.35); }
+.via-btn-ghost:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.65); }
+.via-btn-blue { background: var(--via-blue); color: var(--via-white); }
+.via-btn-blue:hover { background: #0B5AAB; box-shadow: 0 4px 16px rgba(10,79,149,.3); }
+.via-btn-lg { font-size: 1rem; padding: 1rem 2rem; }
+.via-btn-sm { font-size: 0.75rem; padding: 0.5rem 1rem; }
+
+.via-card { background: var(--via-white); border: 1px solid var(--via-navy-15); border-radius: var(--via-radius-lg); padding: 1.5rem; }
+.via-card-dark { background: var(--via-navy); color: var(--via-white); border-radius: var(--via-radius-lg); padding: 1.5rem; }
+
+.via-badge {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.75rem; font-weight: 900;
+  letter-spacing: var(--via-ls-label); text-transform: uppercase;
+  padding: 3px 0.5rem; border-radius: var(--via-radius-sm);
+}
+.via-badge-navy { background: var(--via-navy-06); color: var(--via-navy); }
+.via-badge-blue { background: var(--via-blue-light); color: var(--via-blue); }
+.via-badge-success { background: var(--via-success-bg); color: var(--via-success); }
+.via-badge-warning { background: var(--via-warning-bg); color: var(--via-warning); }
+.via-badge-danger  { background: var(--via-danger-bg);  color: var(--via-danger); }
+
+.via-input {
+  display: block; width: 100%;
+  background: var(--via-white);
+  border: 1px solid var(--via-navy-15);
+  border-radius: var(--via-radius-md, 0.5rem);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--via-navy);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.via-input:focus { outline: none; border-color: var(--via-blue); box-shadow: 0 0 0 3px rgba(10,79,149,.15); }
+
+/* ============================================================
+   Utilitários verbais adicionais (importados do Encurtador)
+   ============================================================ */
+.via-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: var(--via-ls-label);
+  text-transform: uppercase;
+  color: var(--via-blue);
+}
+.dark .via-eyebrow { color: #7eb6f5; }
+
+.via-btn-pill {
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: var(--via-ls-wide);
+  font-weight: 900;
+}
+.via-shadow-card { box-shadow: var(--via-shadow-card); }
+.via-shadow-raised { box-shadow: var(--via-shadow-raised); }

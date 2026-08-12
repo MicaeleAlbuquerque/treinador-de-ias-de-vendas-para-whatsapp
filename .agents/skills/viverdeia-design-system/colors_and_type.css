@@ -1,0 +1,483 @@
+/* ======================================================================
+   Viver de IA — Design System Tokens (canonical)
+   Based on the brand tokens provided by the team.
+   Use via: `--via-*` variables and `.via-*` utility classes.
+   ====================================================================== */
+
+/* Brand face — Avenir LT Std (local OTFs under fonts/) */
+@font-face {
+  font-family: 'Avenir LT Std';
+  src: url('fonts/AvenirLTStd-Light__1_.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Avenir LT Std';
+  src: url('fonts/AvenirLTStd-LightOblique__1_.otf') format('opentype');
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Avenir LT Std';
+  src: url('fonts/AvenirLTStd-Roman__1_.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Avenir LT Std';
+  src: url('fonts/AvenirLTStd-Oblique__1_.otf') format('opentype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+/* 'Heavy' is Avenir's 800/900 — map both so var(--via-fw-bold:900) lands on it */
+@font-face {
+  font-family: 'Avenir LT Std';
+  src: url('fonts/AvenirLTStd-Heavy__1_.otf') format('opentype');
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+
+  /* ============================================================
+     COLORS
+     ============================================================ */
+
+  /* Brand primitives */
+  --via-navy:         #02162A;
+  --via-navy-80:      rgba(2, 22, 42, 0.80);
+  --via-navy-40:      rgba(2, 22, 42, 0.40);
+  --via-navy-15:      rgba(2, 22, 42, 0.15);
+  --via-navy-06:      rgba(2, 22, 42, 0.06);
+
+  --via-blue:         #0A4F95;
+  --via-blue-light:   #E8F0FB;
+
+  --via-black:        #000000;
+  --via-white:        #FFFFFF;
+  --via-bg:           #F9F9F9;
+  --via-bg-2:         #F0F2F5;
+
+  /* Semantic (status) — added to round out the system for product UIs */
+  --via-success:      #1F8A5C;
+  --via-success-bg:   #E6F4ED;
+  --via-warning:      #B8740D;
+  --via-warning-bg:   #FBF0DF;
+  --via-danger:       #B63A2F;
+  --via-danger-bg:    #FBEBE8;
+
+  /* Semantic aliases */
+  --via-color-primary:        var(--via-navy);
+  --via-color-secondary:      var(--via-blue);
+  --via-color-bg-page:        var(--via-bg);
+  --via-color-bg-surface:     var(--via-white);
+  --via-color-bg-subtle:      var(--via-bg-2);
+  --via-color-bg-dark:        var(--via-navy);
+  --via-color-text-primary:   var(--via-navy);
+  --via-color-text-body:      #1C2B3A;
+  --via-color-text-muted:     #6B7A8D;
+  --via-color-text-inverted:  var(--via-white);
+  --via-color-border:         var(--via-navy-15);
+  --via-color-border-strong:  var(--via-navy-40);
+
+  /* Utility palette — for tags, categories, chart series, avatar cycling */
+  --via-signer-1: var(--via-blue);
+  --via-signer-2: #1F8A5C;
+  --via-signer-3: #B8740D;
+  --via-signer-4: #B63A2F;
+  --via-signer-5: #5B3FA0;
+  --via-signer-6: #0F7A8C;
+  /* Semantic aliases (newer, preferred) */
+  --via-util-1: var(--via-signer-1);
+  --via-util-2: var(--via-signer-2);
+  --via-util-3: var(--via-signer-3);
+  --via-util-4: var(--via-signer-4);
+  --via-util-5: var(--via-signer-5);
+  --via-util-6: var(--via-signer-6);
+
+  /* ============================================================
+     TYPOGRAPHY
+     ============================================================ */
+  --via-font:          'Avenir LT Std', 'Avenir Next', Avenir, 'Helvetica Neue', sans-serif;
+  --via-font-mono:     ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  --via-fw-light:      300;
+  --via-fw-regular:    400;
+  --via-fw-semibold:   600;
+  --via-fw-bold:       900;
+
+  --via-fs-display:    3rem;      /* 48px */
+  --via-fs-h1:         2.25rem;   /* 36px */
+  --via-fs-h2:         1.75rem;   /* 28px */
+  --via-fs-h3:         1.25rem;   /* 20px */
+  --via-fs-body:       1rem;      /* 16px */
+  --via-fs-sm:         0.875rem;  /* 14px */
+  --via-fs-xs:         0.75rem;   /* 12px */
+  --via-fs-label:      0.625rem;  /* 10px */
+
+  --via-ls-brand:      0.22em;    /* wordmark "VIVER DE IA" */
+  --via-ls-label:      0.12em;    /* UPPERCASE section labels */
+  --via-ls-wide:       0.06em;    /* buttons, nav links */
+
+  --via-lh-tight:      1.1;
+  --via-lh-normal:     1.5;
+  --via-lh-loose:      1.7;
+
+  /* ============================================================
+     SPACING
+     ============================================================ */
+  --via-space-1:   4px;
+  --via-space-2:   8px;
+  --via-space-3:   12px;
+  --via-space-4:   16px;
+  --via-space-5:   20px;
+  --via-space-6:   24px;
+  --via-space-8:   32px;
+  --via-space-10:  40px;
+  --via-space-12:  48px;
+  --via-space-16:  64px;
+  --via-space-20:  80px;
+
+  /* ============================================================
+     RADIUS
+     ============================================================ */
+  --via-radius-sm:    4px;
+  --via-radius-md:    8px;
+  --via-radius-lg:    12px;
+  --via-radius-xl:    20px;
+  --via-radius-2xl:   32px;
+  --via-radius-pill:  999px;
+
+  /* ============================================================
+     BORDERS / SHADOWS / MOTION
+     ============================================================ */
+  --via-border:         0.5px solid var(--via-color-border);
+  --via-border-strong:  1px solid var(--via-color-border-strong);
+
+  --via-shadow-card:    0 1px 3px rgba(2, 22, 42, 0.08), 0 4px 16px rgba(2, 22, 42, 0.06);
+  --via-shadow-raised:  0 8px 32px rgba(2, 22, 42, 0.12);
+  --via-shadow-focus:   0 0 0 3px rgba(10, 79, 149, 0.25);
+
+  --via-transition:       150ms ease;
+  --via-transition-slow:  300ms ease;
+
+  /* ============================================================
+     LAYOUT
+     ============================================================ */
+  --via-container: 1200px;
+  --via-content:   760px;
+}
+
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; }
+
+body {
+  font-family: var(--via-font);
+  font-weight: var(--via-fw-light);
+  font-size: var(--via-fs-body);
+  line-height: var(--via-lh-loose);
+  color: var(--via-color-text-body);
+  background: var(--via-color-bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+img, svg { display: block; max-width: 100%; }
+a { color: var(--via-blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+
+/* ============================================================
+   TYPOGRAPHY CLASSES
+   ============================================================ */
+
+.via-display   { font-family: var(--via-font); font-size: var(--via-fs-display); font-weight: var(--via-fw-bold); line-height: var(--via-lh-tight); color: var(--via-color-text-primary); letter-spacing: -0.01em; }
+.via-h1        { font-family: var(--via-font); font-size: var(--via-fs-h1);      font-weight: var(--via-fw-bold); line-height: var(--via-lh-tight); color: var(--via-color-text-primary); }
+.via-h2        { font-family: var(--via-font); font-size: var(--via-fs-h2);      font-weight: var(--via-fw-bold); line-height: var(--via-lh-tight); color: var(--via-color-text-primary); }
+.via-h3        { font-family: var(--via-font); font-size: var(--via-fs-h3);      font-weight: var(--via-fw-bold); line-height: var(--via-lh-normal); color: var(--via-color-text-primary); }
+.via-body      { font-size: var(--via-fs-body); font-weight: var(--via-fw-light); line-height: var(--via-lh-loose); color: var(--via-color-text-body); }
+.via-body-bold { font-size: var(--via-fs-body); font-weight: var(--via-fw-bold); color: var(--via-color-text-primary); }
+.via-sm        { font-size: var(--via-fs-sm);  font-weight: var(--via-fw-light); color: var(--via-color-text-muted); }
+.via-label     { font-size: var(--via-fs-label); font-weight: var(--via-fw-bold); letter-spacing: var(--via-ls-label); text-transform: uppercase; color: var(--via-color-text-muted); }
+.via-wordmark  { font-family: var(--via-font); font-size: var(--via-fs-h3); font-weight: var(--via-fw-light); letter-spacing: var(--via-ls-brand); text-transform: uppercase; color: var(--via-color-text-primary); }
+
+.via-text-center { text-align: center; }
+.via-text-navy   { color: var(--via-navy); }
+.via-text-blue   { color: var(--via-blue); }
+.via-text-muted  { color: var(--via-color-text-muted); }
+.via-text-white  { color: var(--via-white); }
+
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+
+.via-container { width: 100%; max-width: var(--via-container); margin: 0 auto; padding: 0 var(--via-space-6); }
+.via-content   { width: 100%; max-width: var(--via-content); margin: 0 auto; }
+.via-section   { padding: var(--via-space-20) 0; }
+.via-divider   { border: none; border-top: var(--via-border); margin: var(--via-space-8) 0; }
+
+.via-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--via-space-6); }
+.via-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--via-space-6); }
+.via-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--via-space-4); }
+
+.via-flex         { display: flex; align-items: center; gap: var(--via-space-4); }
+.via-flex-between { display: flex; align-items: center; justify-content: space-between; gap: var(--via-space-4); }
+.via-stack        { display: flex; flex-direction: column; gap: var(--via-space-4); }
+.via-stack-sm     { display: flex; flex-direction: column; gap: var(--via-space-2); }
+
+
+/* ============================================================
+   SURFACE / CARD
+   ============================================================ */
+
+.via-surface  { background: var(--via-color-bg-surface); border: var(--via-border); border-radius: var(--via-radius-lg); }
+.via-card     { background: var(--via-color-bg-surface); border: var(--via-border); border-radius: var(--via-radius-lg); padding: var(--via-space-6); }
+.via-card-sm  { background: var(--via-color-bg-surface); border: var(--via-border); border-radius: var(--via-radius-md); padding: var(--via-space-4); }
+.via-card-dark{ background: var(--via-navy); border-radius: var(--via-radius-lg); padding: var(--via-space-6); color: var(--via-white); }
+
+.via-card-hover {
+  background: var(--via-color-bg-surface); border: var(--via-border); border-radius: var(--via-radius-lg); padding: var(--via-space-6);
+  transition: border-color var(--via-transition), box-shadow var(--via-transition); cursor: pointer;
+}
+.via-card-hover:hover { border-color: var(--via-color-border-strong); box-shadow: var(--via-shadow-card); }
+
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+.via-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--via-space-2);
+  font-family: var(--via-font); font-size: var(--via-fs-sm); font-weight: var(--via-fw-bold);
+  letter-spacing: var(--via-ls-wide); text-transform: uppercase;
+  border: none; border-radius: var(--via-radius-pill);
+  padding: var(--via-space-3) var(--via-space-6);
+  cursor: pointer;
+  transition: background var(--via-transition), transform var(--via-transition), box-shadow var(--via-transition), border-color var(--via-transition);
+  white-space: nowrap; text-decoration: none; line-height: 1;
+}
+.via-btn:hover  { text-decoration: none; }
+.via-btn:active { transform: scale(0.98); }
+
+.via-btn-primary   { background: var(--via-navy); color: var(--via-white); }
+.via-btn-primary:hover   { background: #0a2540; box-shadow: 0 4px 16px rgba(2, 22, 42, 0.25); }
+
+.via-btn-secondary { background: transparent; color: var(--via-navy); border: 1px solid var(--via-color-border-strong); }
+.via-btn-secondary:hover { background: var(--via-navy-06); border-color: var(--via-navy); }
+
+.via-btn-ghost     { background: transparent; color: var(--via-white); border: 1px solid rgba(255,255,255,0.35); }
+.via-btn-ghost:hover { background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.65); }
+
+.via-btn-blue      { background: var(--via-blue); color: var(--via-white); }
+.via-btn-blue:hover{ background: #0B5AAB; box-shadow: 0 4px 16px rgba(10, 79, 149, 0.3); }
+
+.via-btn-danger    { background: var(--via-danger); color: var(--via-white); }
+.via-btn-danger:hover { background: #9E3327; }
+
+.via-btn-lg { font-size: var(--via-fs-body); padding: var(--via-space-4) var(--via-space-8); }
+.via-btn-sm { font-size: var(--via-fs-xs);   padding: var(--via-space-2) var(--via-space-4); }
+
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+
+.via-badge {
+  display: inline-flex; align-items: center; gap: var(--via-space-1);
+  font-size: var(--via-fs-xs); font-weight: var(--via-fw-bold);
+  letter-spacing: var(--via-ls-label); text-transform: uppercase;
+  padding: 3px var(--via-space-2); border-radius: var(--via-radius-sm);
+}
+.via-badge-navy    { background: var(--via-navy-06); color: var(--via-navy); }
+.via-badge-blue    { background: var(--via-blue-light); color: var(--via-blue); }
+.via-badge-dark    { background: var(--via-navy); color: var(--via-white); }
+.via-badge-success { background: var(--via-success-bg); color: var(--via-success); }
+.via-badge-warning { background: var(--via-warning-bg); color: var(--via-warning); }
+.via-badge-danger  { background: var(--via-danger-bg); color: var(--via-danger); }
+
+
+/* ============================================================
+   FORM ELEMENTS
+   ============================================================ */
+
+.via-label-text {
+  display: block; font-size: var(--via-fs-xs); font-weight: var(--via-fw-bold);
+  letter-spacing: var(--via-ls-label); text-transform: uppercase;
+  color: var(--via-color-text-muted); margin-bottom: var(--via-space-1);
+}
+
+.via-input, .via-select, .via-textarea {
+  width: 100%; font-family: var(--via-font); font-size: var(--via-fs-body);
+  font-weight: var(--via-fw-light); color: var(--via-color-text-primary);
+  background: var(--via-color-bg-surface); border: var(--via-border);
+  border-radius: var(--via-radius-md); padding: var(--via-space-3) var(--via-space-4);
+  outline: none; transition: border-color var(--via-transition), box-shadow var(--via-transition);
+}
+.via-input::placeholder { color: var(--via-color-text-muted); }
+.via-input:focus, .via-select:focus, .via-textarea:focus { border-color: var(--via-blue); box-shadow: var(--via-shadow-focus); }
+.via-select   { appearance: none; cursor: pointer; }
+.via-textarea { resize: vertical; min-height: 100px; }
+.via-field    { display: flex; flex-direction: column; gap: var(--via-space-1); }
+
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+
+.via-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--via-space-4) var(--via-space-6);
+  background: var(--via-color-bg-surface); border-bottom: var(--via-border);
+  position: sticky; top: 0; z-index: 100;
+}
+.via-nav-links { display: flex; align-items: center; gap: var(--via-space-6); list-style: none; }
+.via-nav-link  {
+  font-size: var(--via-fs-sm); font-weight: var(--via-fw-light);
+  letter-spacing: var(--via-ls-wide); color: var(--via-color-text-muted);
+  text-decoration: none; transition: color var(--via-transition);
+}
+.via-nav-link:hover, .via-nav-link.active { color: var(--via-navy); text-decoration: none; }
+.via-nav-link.active { font-weight: var(--via-fw-bold); }
+
+
+/* ============================================================
+   STAT / METRIC CARD
+   ============================================================ */
+
+.via-stat       { padding: var(--via-space-5) var(--via-space-6); background: var(--via-color-bg-surface); border: var(--via-border); border-radius: var(--via-radius-lg); }
+.via-stat-label { font-size: var(--via-fs-xs); font-weight: var(--via-fw-bold); letter-spacing: var(--via-ls-label); text-transform: uppercase; color: var(--via-color-text-muted); margin-bottom: var(--via-space-2); }
+.via-stat-value { font-size: var(--via-fs-h1); font-weight: var(--via-fw-bold); color: var(--via-color-text-primary); line-height: 1; }
+.via-stat-sub   { font-size: var(--via-fs-sm); color: var(--via-color-text-muted); margin-top: var(--via-space-1); }
+
+
+/* ============================================================
+   TABLE
+   ============================================================ */
+
+.via-table { width: 100%; border-collapse: collapse; font-size: var(--via-fs-sm); }
+.via-table thead th {
+  text-align: left; font-size: var(--via-fs-label); font-weight: var(--via-fw-bold);
+  letter-spacing: var(--via-ls-label); text-transform: uppercase;
+  color: var(--via-color-text-muted); padding: var(--via-space-3) var(--via-space-4);
+  border-bottom: var(--via-border);
+}
+.via-table tbody td { padding: var(--via-space-4); border-bottom: var(--via-border); color: var(--via-color-text-body); font-weight: var(--via-fw-light); }
+.via-table tbody tr:last-child td { border-bottom: none; }
+.via-table tbody tr:hover td { background: var(--via-navy-06); }
+
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+
+.via-bg-navy     { background: var(--via-navy); }
+.via-bg-blue     { background: var(--via-blue); }
+.via-bg-white    { background: var(--via-white); }
+.via-bg-page     { background: var(--via-bg); }
+.via-bg-subtle   { background: var(--via-navy-06); }
+.via-bg-blue-light { background: var(--via-blue-light); }
+
+.via-border-el   { border: var(--via-border); }
+.via-border-strong-el { border: var(--via-border-strong); }
+
+.via-rounded-sm   { border-radius: var(--via-radius-sm); }
+.via-rounded-md   { border-radius: var(--via-radius-md); }
+.via-rounded-lg   { border-radius: var(--via-radius-lg); }
+.via-rounded-xl   { border-radius: var(--via-radius-xl); }
+.via-rounded-pill { border-radius: var(--via-radius-pill); }
+
+.via-shadow       { box-shadow: var(--via-shadow-card); }
+.via-shadow-raised{ box-shadow: var(--via-shadow-raised); }
+
+.via-w-full  { width: 100%; }
+.via-mt-auto { margin-top: auto; }
+
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .via-grid-2, .via-grid-3, .via-grid-4 { grid-template-columns: 1fr; }
+  .via-nav-links { display: none; }
+  .via-display   { font-size: 2rem; }
+  .via-h1        { font-size: 1.75rem; }
+}
+
+
+/* ======================================================================
+   LEGACY ALIASES — map older shadcn-era token names to --via-* primitives
+   so the ui_kits/ files (which were authored against the earlier scheme)
+   render correctly. Do NOT use these in new code — prefer --via-* above.
+   ====================================================================== */
+:root {
+  /* Fonts */
+  --font-sans: var(--via-font);
+  --font-mono: var(--via-font-mono);
+
+  /* Surfaces */
+  --bg-base:        var(--via-bg);
+  --bg-elevated:    var(--via-white);
+  --bg-surface-1:   var(--via-bg-2);
+  --bg-surface-2:   #E7EAEF;
+  --bg-dark:        var(--via-navy);
+  --bg-darkest:     #021022;
+
+  /* Text */
+  --text-primary:   var(--via-navy);
+  --text-secondary: var(--via-color-text-body);
+  --text-tertiary:  var(--via-color-text-muted);
+  --text-on-dark:   rgba(255,255,255,0.92);
+
+  /* Borders */
+  --border-default: var(--via-navy-15);
+  --border-subtle:  var(--via-navy-06);
+
+  /* Accents */
+  --accent-primary:        var(--via-blue);
+  --accent-primary-hover:  #0B5AAB;
+  --accent-primary-light:  #4E8CCF;
+  --accent-success:        var(--via-success);
+  --accent-warm:           var(--via-warning);
+
+  /* Radii */
+  --radius-sm: var(--via-radius-sm);
+  --radius-md: var(--via-radius-md);
+  --radius-lg: var(--via-radius-lg);
+
+  /* Shadows */
+  --shadow-elevation-1: 0 1px 2px rgba(2,22,42,0.05);
+  --shadow-elevation-2: 0 2px 8px rgba(2,22,42,0.06);
+  --shadow-elevation-3: 0 6px 20px rgba(2,22,42,0.09);
+  --shadow-elevation-4: 0 12px 36px rgba(2,22,42,0.12);
+  --shadow-elevation-5: 0 20px 56px rgba(2,22,42,0.16);
+  --shadow-accent-glow:    0 4px 16px rgba(10,79,149,0.25);
+  --shadow-accent-glow-lg: 0 10px 28px rgba(10,79,149,0.32);
+
+  /* Type presets used by ui_kits */
+  --text-h4:       700 22px/1.25 var(--via-font);
+  --text-h5:       700 18px/1.3  var(--via-font);
+  --text-body-sm:  400 14px/1.5  var(--via-font);
+  --text-button:   600 14px/1    var(--via-font);
+  --text-badge:    700 11px/1    var(--via-font);
+  --text-caption:  400 12px/1.4  var(--via-font);
+  --text-eyebrow:  700 12px/1.2  var(--via-font);
+}
+
+/* Small legacy utility classes referenced by the kits */
+.body-sm { font: var(--text-body-sm); color: var(--text-primary); }
+.caption { font: var(--text-caption); color: var(--text-tertiary); }
+.muted   { color: var(--text-tertiary); }
+.kpi     { font: 700 28px/1 var(--via-font); color: var(--text-primary); letter-spacing: -0.01em; }

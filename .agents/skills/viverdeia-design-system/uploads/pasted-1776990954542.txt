@@ -1,0 +1,1 @@
+<iframe id="panda-f5c72abd-5201-4581-9073-bee8f8c2f661" src="https://player-vz-d6ebf577-797.tv.pandavideo.com.br/embed/?v=f5c72abd-5201-4581-9073-bee8f8c2f661" style="border:none;" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture" allowfullscreen=true width="720" height="360" fetchpriority="high"></iframe>

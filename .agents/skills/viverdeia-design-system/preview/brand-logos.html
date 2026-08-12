@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body{padding:0;background:var(--via-bg);font-family:var(--via-font)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .cell{display:flex;align-items:center;justify-content:center;padding:32px 24px;min-height:150px;position:relative}
+  .light{background:var(--via-bg)}
+  .dark{background:var(--via-navy)}
+  .cell img{display:block;max-width:78%;max-height:72px;height:auto;width:auto}
+  .cell--icon img{max-height:56px}
+  .lab{position:absolute;bottom:10px;left:14px;font-size:9px;text-transform:uppercase;letter-spacing:.14em;font-weight:700;font-family:var(--via-font-mono)}
+  .light .lab{color:var(--via-color-text-muted)}
+  .dark .lab{color:rgba(255,255,255,.55)}
+</style></head><body>
+<div class="grid">
+  <div class="cell light"><img src="../assets/viverdeia-lockup-black.svg" alt="Lockup preto"><span class="lab">Lockup · preto</span></div>
+  <div class="cell dark"><img src="../assets/viverdeia-lockup-white.svg" alt="Lockup branco"><span class="lab">Lockup · branco</span></div>
+  <div class="cell light cell--icon"><img src="../assets/viverdeia-icon-black.svg" alt="Icon preto"><span class="lab">Icon · preto</span></div>
+  <div class="cell dark cell--icon"><img src="../assets/viverdeia-icon-white.svg" alt="Icon branco"><span class="lab">Icon · branco</span></div>
+</div>
+</body></html>

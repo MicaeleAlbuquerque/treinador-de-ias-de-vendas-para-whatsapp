@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{padding:20px;background:var(--via-bg);display:flex;gap:18px;flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:var(--via-space-1);flex:1 1 260px;min-width:240px}
+  .err{color:var(--via-danger);font-size:12px;margin-top:4px}
+  .hint{color:var(--via-color-text-muted);font-size:12px}
+</style></head><body>
+<div class="field">
+  <label class="via-label-text">Nome do envelope</label>
+  <input class="via-input" value="Contrato de prestação — Acme Ltda." />
+  <span class="hint">Aparece no email dos signatários.</span>
+</div>
+<div class="field">
+  <label class="via-label-text">Status</label>
+  <select class="via-select"><option>Todos</option><option>Em andamento</option></select>
+  <span class="hint">Filtre a lista.</span>
+</div>
+<div class="field">
+  <label class="via-label-text">Email do signatário</label>
+  <input class="via-input" value="rafael@" style="border-color:var(--via-danger);box-shadow:0 0 0 3px rgba(182,58,47,.18)" />
+  <span class="err">Email inválido.</span>
+</div>
+</body></html>

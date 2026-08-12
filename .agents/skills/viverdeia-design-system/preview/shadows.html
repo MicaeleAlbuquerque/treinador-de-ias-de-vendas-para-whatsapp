@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body{padding:28px;background:var(--via-bg);display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
+  .card{background:var(--via-white);border:var(--via-border);border-radius:var(--via-radius-lg);height:80px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--via-color-text-muted);font-family:var(--via-font-mono);letter-spacing:.08em;text-transform:uppercase}
+  .card.shadow{box-shadow:var(--via-shadow-card)}
+  .card.raised{box-shadow:var(--via-shadow-raised)}
+  .card.focus{border-color:var(--via-blue);box-shadow:var(--via-shadow-focus)}
+  .card.dark{background:var(--via-navy);color:#fff;border-color:transparent}
+</style></head><body>
+<div class="card">plano · via-border</div>
+<div class="card shadow">shadow-card · cartões</div>
+<div class="card raised">shadow-raised · popover</div>
+<div class="card focus">shadow-focus · inputs</div>
+<div class="card dark">dark surface</div>
+<div class="card" style="border-width:1px;border-color:var(--via-navy-40)">border-strong</div>
+</body></html>

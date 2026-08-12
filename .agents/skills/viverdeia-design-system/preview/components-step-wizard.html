@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{padding:18px;background:var(--via-bg)}
+  .row{display:flex;align-items:center;gap:6px}
+  .step{display:flex;align-items:center;gap:10px}
+  .num{width:32px;height:32px;border-radius:var(--via-radius-pill);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:var(--via-fw-bold)}
+  .done .num{background:var(--via-blue);color:#fff}
+  .cur .num{background:var(--via-navy);color:#fff;box-shadow:0 0 0 4px rgba(2,22,42,.12)}
+  .pend .num{background:var(--via-bg-2);color:var(--via-color-text-muted)}
+  .lab{font-size:13px;font-weight:var(--via-fw-bold);letter-spacing:.02em}
+  .done .lab,.cur .lab{color:var(--via-navy)}
+  .pend .lab{color:var(--via-color-text-muted);font-weight:300}
+  .line{flex:0 0 34px;height:1px;background:var(--via-color-border);margin:0 6px}
+  .line.on{background:var(--via-blue)}
+</style></head><body>
+<div class="row">
+  <div class="step done"><div class="num">✓</div><div class="lab">Documento</div></div>
+  <div class="line on"></div>
+  <div class="step done"><div class="num">✓</div><div class="lab">Signatários</div></div>
+  <div class="line on"></div>
+  <div class="step cur"><div class="num">3</div><div class="lab">Campos</div></div>
+  <div class="line"></div>
+  <div class="step pend"><div class="num">4</div><div class="lab">Mensagem</div></div>
+  <div class="line"></div>
+  <div class="step pend"><div class="num">5</div><div class="lab">Revisar</div></div>
+</div>
+</body></html>
