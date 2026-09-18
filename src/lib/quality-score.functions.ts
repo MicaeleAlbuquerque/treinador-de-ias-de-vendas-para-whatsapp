@@ -33,16 +33,29 @@ export const scoreAllPendingQuality = createServerFn({ method: "POST" })
 
     let processed = 0;
     let failed = 0;
-    for (const jobId of claimed) {
+    let rateLimited = false;
+
+    for (let i = 0; i < claimed.length; i++) {
+      const jobId = claimed[i]!;
       try {
         await processQualityScoreJob(jobId);
         processed++;
-      } catch {
+        // Espaçamento entre requisições para respeitar os limites de requisições por minuto do Gemini (Free Tier)
+        if (i < claimed.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      } catch (e: any) {
+        const msg = String(e?.message || "");
+        if (msg.includes("429") || msg.includes("Quota exceeded") || msg.includes("rate-limits")) {
+          rateLimited = true;
+          // Não continua disparando o restante do lote se a quota por minuto estourou
+          break;
+        }
         failed++;
       }
     }
 
-    return { enqueued, claimed: claimed.length, processed, failed };
+    return { enqueued, claimed: claimed.length, processed, failed, rateLimited };
   });
 
 export const getQualityScoreStats = createServerFn({ method: "GET" })

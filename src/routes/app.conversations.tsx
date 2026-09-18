@@ -8,7 +8,7 @@ import { useMyRole } from "@/lib/user-role";
 import { ensureDemoSeed } from "@/lib/whatsapp.functions";
 import { Upload, MessageCircle, Smartphone, Search, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { cleanupInvalidConversations, wipeEvolutionConversations } from "@/lib/whatsapp.functions";
+import { cleanupInvalidConversations, wipeEvolutionConversations, wipeUploadConversations, wipeDemoConversations, deleteConversation } from "@/lib/whatsapp.functions";
 
 export const Route = createFileRoute("/app/conversations")({
   component: ConversationsLayout,
@@ -162,7 +162,12 @@ function ConversationsList() {
 
   const cleanupFn = useServerFn(cleanupInvalidConversations);
   const wipeFn = useServerFn(wipeEvolutionConversations);
+  const wipeUploadFn = useServerFn(wipeUploadConversations);
+  const wipeDemoFn = useServerFn(wipeDemoConversations);
+  const deleteConvFn = useServerFn(deleteConversation);
   const [cleaning, setCleaning] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   async function onCleanup() {
     if (!confirm(`Apagar conversas inválidas (lead_phone não-numérico ou sem mensagens)? Mensagens caem em cascata. Não desfaz.`)) return;
     setCleaning(true);
@@ -184,6 +189,45 @@ function ConversationsList() {
       qc.invalidateQueries({ queryKey: ["conversations"] });
     } catch (e) { toast.error((e as Error).message); }
     finally { setCleaning(false); }
+  }
+  async function onWipeUpload() {
+    if (!confirm("APAGAR TODAS as conversas vindas de upload manual? (preserva Evolution e demo). NÃO desfaz.")) return;
+    if (!confirm("Confirma APAGAR EM DEFINITIVO as conversas de upload?")) return;
+    setCleaning(true);
+    try {
+      const r = await wipeUploadFn({});
+      if (r.deleted === 0) toast.info("Nenhuma conversa de upload encontrada.");
+      else toast.success(`Apagadas ${r.deleted} conversa(s) de upload.`);
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setCleaning(false); }
+  }
+  async function onWipeDemo() {
+    if (!confirm("APAGAR TODAS as conversas de demonstração (demo)? (preserva Evolution e uploads). NÃO desfaz.")) return;
+    if (!confirm("Confirma APAGAR EM DEFINITIVO as conversas demo?")) return;
+    setCleaning(true);
+    try {
+      const r = await wipeDemoFn({});
+      if (r.deleted === 0) toast.info("Nenhuma conversa de demonstração encontrada.");
+      else toast.success(`Apagadas ${r.deleted} conversa(s) de demonstração.`);
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setCleaning(false); }
+  }
+  async function onDeleteConversation(c: ConvRow, e: React.MouseEvent) {
+    e.stopPropagation();
+    const label = c.lead_name_anon || c.lead_phone;
+    if (!confirm(`Apagar a conversa com ${label}? Mensagens e histórico serão removidos em definitivo.`)) return;
+    setDeletingId(c.id);
+    try {
+      await deleteConvFn({ data: { conversationId: c.id } });
+      toast.success("Conversa apagada com sucesso.");
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -211,6 +255,22 @@ function ConversationsList() {
             title="Apaga TODAS conversas vindas da Evolution (preserva demo + uploads). Pra re-importar do zero."
           >
             <Trash2 size={14} /> Apagar tudo Evolution
+          </button>
+          <button
+            onClick={onWipeUpload}
+            disabled={cleaning}
+            className="via-btn via-btn-secondary inline-flex items-center gap-2 text-red-700 border-red-300 hover:bg-red-50"
+            title="Apaga TODAS conversas vindas de upload manual (preserva Evolution e demo)."
+          >
+            <Trash2 size={14} /> Apagar tudo Upload
+          </button>
+          <button
+            onClick={onWipeDemo}
+            disabled={cleaning}
+            className="via-btn via-btn-secondary inline-flex items-center gap-2 text-red-700 border-red-300 hover:bg-red-50"
+            title="Apaga TODAS conversas de demonstração (demo)."
+          >
+            <Trash2 size={14} /> Apagar tudo Demo
           </button>
           <Link to="/app/conversations/upload" className="via-btn via-btn-secondary inline-flex items-center gap-2">
             <Upload size={14} /> Subir export manual
@@ -328,6 +388,7 @@ function ConversationsList() {
                 <th className="px-4 py-2 text-left">Outcome</th>
                 <th className="px-4 py-2 text-left">Origem</th>
                 <th className="px-4 py-2 text-left">Última msg</th>
+                <th className="px-4 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -367,6 +428,17 @@ function ConversationsList() {
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     {c.last_msg_at ? new Date(c.last_msg_at).toLocaleString("pt-BR") : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={(e) => onDeleteConversation(c, e)}
+                      disabled={deletingId === c.id}
+                      className="inline-flex items-center justify-center rounded p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors"
+                      title="Apagar esta conversa"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </td>
                 </tr>
               ))}

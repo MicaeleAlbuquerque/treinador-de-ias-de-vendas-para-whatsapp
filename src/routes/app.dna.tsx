@@ -151,12 +151,14 @@ function DnaPage() {
     setEvaluatingQuality(true);
     try {
       const r = await scoreQualityFn({ data: { batch: 10 } });
-      if (r.processed === 0 && r.enqueued === 0) {
+      if (r.rateLimited) {
+        toast.warning(`Limite de requisições por minuto da IA atingido (${r.processed} avaliadas neste lote). Aguarde cerca de 30 a 60 segundos para rodar o próximo lote.`);
+      } else if (r.processed === 0 && r.enqueued === 0) {
         toast.info("Todas as conversas elegíveis já foram avaliadas.");
       } else if (r.failed > 0) {
-        toast.warning(`Lote: ${r.processed} avaliadas, ${r.failed} falhas, ${r.enqueued} enfileiradas.`);
+        toast.warning(`Lote: ${r.processed} avaliadas, ${r.failed} falhas temporárias.`);
       } else {
-        toast.success(`Lote: ${r.processed} avaliadas. ${r.enqueued} pendentes na fila.`);
+        toast.success(`Lote: ${r.processed} conversas avaliadas com sucesso.`);
       }
       qc.invalidateQueries({ queryKey: ["quality-stats"] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
@@ -579,7 +581,17 @@ function QualityScorePanel({
         </div>
         <div className="rounded-lg border border-border bg-muted/30 p-3">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Na fila</div>
-          <div className="text-xl font-bold mt-1">{stats.pendingJobs}{stats.failedJobs > 0 ? <span className="text-xs ml-1 text-red-600">+{stats.failedJobs} erro</span> : null}</div>
+          <div className="text-xl font-bold mt-1">
+            {stats.pendingJobs}
+            {stats.failedJobs > 0 ? (
+              <span
+                className="text-xs ml-1.5 text-amber-600 dark:text-amber-400 font-normal"
+                title="Conversas que aguardam liberação da quota de requisições por minuto da IA."
+              >
+                ({stats.failedJobs} aguardando quota)
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
       {stats.total === 0 && (

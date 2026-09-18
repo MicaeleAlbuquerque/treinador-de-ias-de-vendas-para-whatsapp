@@ -354,14 +354,34 @@ function AccountSettings() {
     qc.invalidateQueries({ queryKey: ["my-profile", user.id] });
   }
 
+  const [sendingReset, setSendingReset] = useState(false);
+
   async function savePwd(e: FormEvent) {
     e.preventDefault();
+    if (!password || password.length < 6) {
+      toast.error("A nova senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
     setSavingPwd(true);
     const { error } = await supabase.auth.updateUser({ password });
     setSavingPwd(false);
     if (error) { toast.error(error.message); return; }
     setPassword("");
-    toast.success("Senha atualizada.");
+    toast.success("Senha atualizada com sucesso.");
+  }
+
+  async function sendResetLink() {
+    if (!user?.email) return;
+    setSendingReset(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+    setSendingReset(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`Link de redefinição enviado para ${user.email}`);
   }
 
   return (
@@ -376,10 +396,23 @@ function AccountSettings() {
       </form>
       <form onSubmit={savePwd} className="via-card space-y-4">
         <h3 className="text-lg">Mudar senha</h3>
+        <p className="text-xs text-muted-foreground">
+          Defina uma nova senha diretamente abaixo ou solicite um link de recuperação por e-mail.
+        </p>
         <Field label="Nova senha" type="password" value={password} onChange={setPassword} required autoComplete="new-password" />
-        <button type="submit" disabled={savingPwd} className="via-btn via-btn-primary">
-          {savingPwd ? "Salvando…" : "Atualizar senha"}
-        </button>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <button type="submit" disabled={savingPwd || !password} className="via-btn via-btn-primary">
+            {savingPwd ? "Salvando…" : "Atualizar senha"}
+          </button>
+          <button
+            type="button"
+            onClick={sendResetLink}
+            disabled={sendingReset}
+            className="via-btn via-btn-secondary"
+          >
+            {sendingReset ? "Enviando…" : "Enviar link por e-mail"}
+          </button>
+        </div>
       </form>
       <div className="via-card">
         <h3 className="text-lg">Sessão</h3>
@@ -424,6 +457,7 @@ function CompanySettings() {
     toast.success("Empresa atualizada.");
     qc.invalidateQueries({ queryKey: ["app-settings"] });
     qc.invalidateQueries({ queryKey: ["app-settings-full"] });
+    qc.invalidateQueries({ queryKey: ["app-settings-company"] });
   }
 
   return (
@@ -1491,7 +1525,7 @@ function AIAccountSettings() {
     <form onSubmit={save} className="via-card space-y-4">
       <h3 className="text-lg">Conta da IA</h3>
       <p className="text-xs text-muted-foreground">
-        Se o checkbox estiver desmarcado, o sistema usa automaticamente o <strong>Google Gemini (Gemini 2.5 Flash)</strong> configurado no seu arquivo <code>.env</code> (<code>GEMINI_API_KEY</code>).
+        Se o checkbox estiver desmarcado, o sistema usa automaticamente o <strong>Google Gemini (Gemini 3.6)</strong> configurado no seu arquivo <code>.env</code> (<code>GEMINI_API_KEY</code>).
         Ative a opção abaixo apenas se quiser usar a sua chave da OpenAI (<strong>gpt-4o-mini</strong> e Whisper).
       </p>
       <label className="flex items-center gap-2 text-sm">

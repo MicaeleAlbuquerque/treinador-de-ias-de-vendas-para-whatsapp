@@ -1,10 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Copy, Trash2, Mail } from "lucide-react";
 import { Field } from "./auth.sign-in";
+import {
+  getTeamMembers,
+  getTeamInvites,
+  createTeamInvite,
+  revokeTeamInvite,
+  removeTeamMember,
+} from "@/lib/team.functions";
 
 export const Route = createFileRoute("/app/team")({ component: TeamPage });
 
@@ -23,57 +30,46 @@ function inviteUrl(token: string) {
 
 function TeamPage() {
   const qc = useQueryClient();
+  const getMembersFn = useServerFn(getTeamMembers);
+  const getInvitesFn = useServerFn(getTeamInvites);
+  const revokeInviteFn = useServerFn(revokeTeamInvite);
+  const removeUserFn = useServerFn(removeTeamMember);
 
   const membersQuery = useQuery({
     queryKey: ["members"],
     queryFn: async (): Promise<Member[]> => {
-      const { data: roles, error } = await supabase
-        .from("user_roles")
-        .select("user_id");
-      if (error) throw error;
-      const ids = Array.from(new Set((roles ?? []).map((r) => r.user_id)));
-      const { data: profiles } = ids.length
-        ? await supabase.from("profiles").select("id, display_name").in("id", ids)
-        : { data: [] as { id: string; display_name: string | null }[] };
-      const nameById = new Map((profiles ?? []).map((p) => [p.id, p.display_name]));
-      return ids.map((user_id) => ({
-        user_id,
-        display_name: nameById.get(user_id) ?? null,
-      }));
+      const data = await getMembersFn({});
+      return data ?? [];
     },
   });
 
   const invitesQuery = useQuery({
     queryKey: ["invites"],
     queryFn: async (): Promise<Invite[]> => {
-      const { data, error } = await supabase
-        .from("invites")
-        .select("id, email, token, expires_at, accepted_at")
-        .is("accepted_at", null)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
+      const data = await getInvitesFn({});
       return data ?? [];
     },
   });
 
   async function removeUser(userId: string) {
     if (!confirm("Remover este usuário do sistema?")) return;
-    const { error } = await supabase.from("user_roles").delete().eq("user_id", userId);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      await removeUserFn({ data: { userId } });
+      toast.success("Usuário removido.");
+      qc.invalidateQueries({ queryKey: ["members"] });
+    } catch (err) {
+      toast.error((err as Error).message);
     }
-    toast.success("Usuário removido.");
-    qc.invalidateQueries({ queryKey: ["members"] });
   }
 
   async function revokeInvite(id: string) {
-    const { error } = await supabase.from("invites").delete().eq("id", id);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      await revokeInviteFn({ data: { id } });
+      toast.success("Convite revogado.");
+      qc.invalidateQueries({ queryKey: ["invites"] });
+    } catch (err) {
+      toast.error((err as Error).message);
     }
-    qc.invalidateQueries({ queryKey: ["invites"] });
   }
 
   return (
@@ -168,31 +164,26 @@ function TeamPage() {
 
 function InviteForm() {
   const qc = useQueryClient();
+  const createInviteFn = useServerFn(createTeamInvite);
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { data: userData } = await supabase.auth.getUser();
-    const { data, error } = await supabase
-      .from("invites")
-      .insert({
-        email: email.toLowerCase().trim(),
-        role: "admin",
-        created_by: userData.user!.id,
-      })
-      .select("token")
-      .single();
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const data = await createInviteFn({
+        data: { email: email.toLowerCase().trim() },
+      });
+      setEmail("");
+      await navigator.clipboard.writeText(inviteUrl(data.token));
+      toast.success("Convite criado e link copiado.");
+      qc.invalidateQueries({ queryKey: ["invites"] });
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setLoading(false);
     }
-    setEmail("");
-    await navigator.clipboard.writeText(inviteUrl(data.token));
-    toast.success("Convite criado e link copiado.");
-    qc.invalidateQueries({ queryKey: ["invites"] });
   }
 
   return (

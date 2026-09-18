@@ -178,6 +178,17 @@ Avalie a mensagem contra essa base (tom, uso de scripts vencedores, ausência de
 // Considera só mensagens com CONTEÚDO textual (text ou transcrição) — mídia/áudio
 // sem texto seria "skipped" e ficaria re-tentada a cada lote, travando o avanço.
 export async function processCoachQueue(limit = 20): Promise<{ processed: number; skipped: number; remaining: number }> {
+  const { data: settings } = await supabaseAdmin
+    .from("app_settings")
+    .select("current_dna_snapshot_id, current_playbook_snapshot_id")
+    .eq("id", true)
+    .maybeSingle();
+  const snapId = (settings as any)?.current_dna_snapshot_id as string | null;
+  const playbookId = (settings as any)?.current_playbook_snapshot_id as string | null;
+  if (!snapId && !playbookId) {
+    throw new Error("A Coach precisa de uma base de comparação. Gere um Playbook ou DNA primeiro na aba DNA.");
+  }
+
   const { data } = await supabaseAdmin
     .from("messages")
     .select("id, text, audio_transcript")

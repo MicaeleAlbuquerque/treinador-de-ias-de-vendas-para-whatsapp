@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getWhatsAppInstance } from "@/lib/whatsapp.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/app")({
   component: AppShell,
@@ -55,12 +56,45 @@ function AppShell() {
 function AppSidebar({ email }: { email?: string }) {
   const loc = useLocation();
   const navigate = useNavigate();
+
+  const companyQ = useQuery({
+    queryKey: ["app-settings-company"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("company_name, logo_url")
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+  });
+
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-border bg-card md:flex">
-      <div className="flex h-20 flex-col justify-center gap-1.5 border-b border-border px-6">
-        <img src={logoLockupDark} alt="Viver de IA" className="h-5 w-auto self-start dark:hidden" />
-        <img src={logoLockupLight} alt="Viver de IA" className="hidden h-5 w-auto self-start dark:block" />
-        <p className="via-label text-[9px] text-muted-foreground">Treinador de IAs de Vendas</p>
+      <div className="flex min-h-20 flex-col justify-center gap-1 border-b border-border px-6 py-3">
+        {companyQ.data?.logo_url ? (
+          <img
+            src={companyQ.data.logo_url}
+            alt={companyQ.data.company_name ?? "Logo da empresa"}
+            className="max-h-8 max-w-[180px] w-auto object-contain self-start"
+            onError={(e) => {
+              (e.currentTarget as HTMLElement).style.display = "none";
+            }}
+          />
+        ) : (
+          <>
+            <img src={logoLockupDark} alt="Viver de IA" className="h-5 w-auto self-start dark:hidden" />
+            <img src={logoLockupLight} alt="Viver de IA" className="hidden h-5 w-auto self-start dark:block" />
+          </>
+        )}
+        <div className="flex flex-col">
+          {companyQ.data?.company_name && (
+            <span className="font-semibold text-xs text-foreground truncate max-w-[200px]" title={companyQ.data.company_name}>
+              {companyQ.data.company_name}
+            </span>
+          )}
+          <p className="via-label text-[9px] text-muted-foreground">Treinador de IAs de Vendas</p>
+        </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
         {NAV.map((item) => {

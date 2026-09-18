@@ -82,10 +82,6 @@ function PromptsPage() {
             <div className="flex items-center gap-2 pt-2">
               <Trophy size={16} className="text-foreground" />
               <h2 className="text-lg font-semibold">Exports avançados (DNA Tier 2)</h2>
-              <span className="text-xs text-muted-foreground">
-                snapshot <Link to="/app/dna" className="underline">{snapId.slice(0, 8)}</Link>
-                {snapQ.data && ` · ${snapQ.data.total_conversations_analyzed} conversas`}
-              </span>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <SystemPromptCard snapshotId={snapId} publishedId={settingsQ.data?.published_prompt_version_id ?? null} onChange={() => qc.invalidateQueries({ queryKey: ["prompts-settings"] })} />

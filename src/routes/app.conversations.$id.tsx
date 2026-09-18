@@ -5,7 +5,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { assignSellerToConversation } from "@/lib/whatsapp.functions";
 import { tagConversation, reclassifyMessage } from "@/lib/analysis.functions";
-import { ChevronLeft, Check, X, Clock, UserCircle, ShieldCheck } from "lucide-react";
+import { ChevronLeft, Check, X, Clock, UserCircle, ShieldCheck, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/conversations/$id")({
@@ -154,6 +154,16 @@ function ConversationDetail() {
         <button type="button" onClick={() => handleTag("in_progress")} className="via-btn via-btn-sm via-btn-secondary inline-flex items-center gap-1">
           <Clock size={14} /> Em andamento
         </button>
+        {conv.outcome !== "unknown" && (
+          <button
+            type="button"
+            onClick={() => handleTag("unknown", null)}
+            className="via-btn via-btn-sm via-btn-secondary inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+            title="Remove o outcome e volta para Sem marca"
+          >
+            <RotateCcw size={14} /> Desmarcar outcome
+          </button>
+        )}
         {conv.auto_marked && conv.outcome !== "unknown" && (
           <button type="button" onClick={handleConfirm} className="via-btn via-btn-sm via-btn-primary inline-flex items-center gap-1">
             <ShieldCheck size={14} /> Confirmar tagging

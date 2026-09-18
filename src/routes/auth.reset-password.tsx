@@ -31,8 +31,8 @@ function ResetPasswordPage() {
           : window.location.hash;
         const hashParams = new URLSearchParams(hashClean);
 
-        const emailParam = searchParams.get("email");
-        if (emailParam) setEmail(emailParam);
+        const emailParam = searchParams.get("email") || hashParams.get("email");
+        if (emailParam && mounted) setEmail(emailParam);
 
         // Verifica se o Supabase retornou erro no hash ou search (ex: link expirado por email scanner)
         const errorParam = hashParams.get("error") || searchParams.get("error");
@@ -99,6 +99,7 @@ function ResetPasswordPage() {
         const { data: sessionData } = await supabase.auth.getSession();
         if (sessionData?.session && mounted) {
           setHasActiveSession(true);
+          if (sessionData.session.user?.email && !email) setEmail(sessionData.session.user.email);
         }
       } catch (err) {
         console.error("Erro ao verificar autenticação de recuperação:", err);

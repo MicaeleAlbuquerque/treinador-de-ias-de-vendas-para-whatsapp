@@ -80,25 +80,51 @@ export const createWhatsAppInstance = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
 
-    // Generate webhook token, insert instance row first
-    const { data: inserted, error: insErr } = await supabaseAdmin
+    // Se já existe uma instância com esse nome, atualiza ao invés de duplicar linha
+    const { data: existingInst } = await supabaseAdmin
       .from("whatsapp_instances")
-      .insert({
-        instance_name: data.instanceName,
-        evolution_url: data.evolutionUrl,
-        status: "connecting",
-        seller_id: data.sellerId ?? null,
-      })
       .select("id, webhook_token")
-      .single();
-    if (insErr || !inserted) throw new Error(insErr?.message ?? "Falha ao criar instância.");
+      .eq("instance_name", data.instanceName)
+      .maybeSingle();
 
-    await supabaseAdmin.from("whatsapp_secrets").insert({
-      instance_id: inserted.id,
+    let targetId: string;
+    let webhookToken: string;
+
+    if (existingInst) {
+      targetId = existingInst.id;
+      webhookToken = existingInst.webhook_token;
+      await supabaseAdmin
+        .from("whatsapp_instances")
+        .update({
+          evolution_url: data.evolutionUrl,
+          status: "connecting",
+          seller_id: data.sellerId ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", targetId);
+    } else {
+      const { data: inserted, error: insErr } = await supabaseAdmin
+        .from("whatsapp_instances")
+        .insert({
+          instance_name: data.instanceName,
+          evolution_url: data.evolutionUrl,
+          status: "connecting",
+          seller_id: data.sellerId ?? null,
+        })
+        .select("id, webhook_token")
+        .single();
+      if (insErr || !inserted) throw new Error(insErr?.message ?? "Falha ao criar instância.");
+      targetId = inserted.id;
+      webhookToken = inserted.webhook_token;
+    }
+
+    await supabaseAdmin.from("whatsapp_secrets").upsert({
+      instance_id: targetId,
       evolution_token: data.evolutionToken,
-    });
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "instance_id" });
 
-    const webhookUrl = `${PROJECT_BASE_URL}/api/public/whatsapp-webhook?token=${inserted.webhook_token}`;
+    const webhookUrl = `${PROJECT_BASE_URL}/api/public/whatsapp-webhook?token=${webhookToken}`;
     const cfg: EvolutionConfig = { baseUrl: data.evolutionUrl, token: data.evolutionToken };
 
     const result = await createInstanceIdempotent(cfg, {
@@ -110,7 +136,7 @@ export const createWhatsAppInstance = createServerFn({ method: "POST" })
       await supabaseAdmin
         .from("whatsapp_instances")
         .update({ status: "error", last_error: result.error ?? "Falha desconhecida ao criar instância." })
-        .eq("id", inserted.id);
+        .eq("id", targetId);
       throw new Error(result.error ?? "Falha ao criar instância Evolution.");
     }
 
@@ -123,10 +149,10 @@ export const createWhatsAppInstance = createServerFn({ method: "POST" })
           ? null
           : "Webhook não pôde ser configurado automaticamente — verifique manualmente.",
       })
-      .eq("id", inserted.id);
+      .eq("id", targetId);
 
     return {
-      instanceId: inserted.id,
+      instanceId: targetId,
       qrBase64: result.qrBase64,
       alreadyExisted: result.alreadyExisted,
       webhookOk: result.webhookOk,
@@ -341,6 +367,58 @@ export const wipeEvolutionConversations = createServerFn({ method: "POST" })
       .from("sync_jobs")
       .update({ status: "failed", error_text: "Cancelado por wipe manual.", finished_at: new Date().toISOString() })
       .in("status", ["pending", "running"]);
+    return { deleted: before ?? 0 };
+  });
+
+// Apaga TODAS as conversas vindas de upload manual (preserva demo + Evolution).
+export const wipeUploadConversations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    // Conta antes
+    const { count: before } = await supabaseAdmin
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("source", "upload");
+    // Apaga — mensagens vão em cascade pela FK
+    const { error } = await supabaseAdmin
+      .from("conversations")
+      .delete()
+      .eq("source", "upload");
+    if (error) throw new Error(error.message);
+    return { deleted: before ?? 0 };
+  });
+
+// Apaga uma conversa individualmente (mensagens, objeções etc vão em cascata via FK)
+export const deleteConversation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { conversationId: string }) =>
+    z.object({ conversationId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { error } = await supabaseAdmin
+      .from("conversations")
+      .delete()
+      .eq("id", data.conversationId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// Apaga TODAS as conversas de demonstração (preserva Evolution + upload).
+export const wipeDemoConversations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { count: before } = await supabaseAdmin
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("source", "demo");
+    const { error } = await supabaseAdmin
+      .from("conversations")
+      .delete()
+      .eq("source", "demo");
+    if (error) throw new Error(error.message);
     return { deleted: before ?? 0 };
   });
 

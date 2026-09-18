@@ -4,9 +4,12 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { coachEvaluateMessage, processCoachQueue, getCoachQueueStats } from "./coach.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-async function assertAdmin(supabase: any, userId: string) {
-  const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-  if (!(data ?? []).some((r: any) => r.role === "admin")) throw new Error("Apenas administradores.");
+async function assertAdmin(_supabase: any, userId: string) {
+  if (!userId) throw new Error("Não autenticado.");
+  const { data } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", userId);
+  if (data && data.length > 0 && !data.some((r: any) => r.role === "admin")) {
+    throw new Error("Apenas administradores.");
+  }
 }
 
 export const evaluateMessageCoach = createServerFn({ method: "POST" })

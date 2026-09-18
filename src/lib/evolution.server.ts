@@ -529,6 +529,16 @@ function readChatLeadPhone(c: unknown, remoteJid: string): string | null {
 }
 
 function toEpochMs(value: unknown): number {
+  if (typeof value === "object" && value !== null) {
+    const low = (value as any).low;
+    if (typeof low === "number" && Number.isFinite(low)) {
+      return low < 1_000_000_000_000 ? low * 1000 : low;
+    }
+  }
+  if (typeof value === "bigint") {
+    const num = Number(value);
+    if (Number.isFinite(num)) return num < 1_000_000_000_000 ? num * 1000 : num;
+  }
   if (typeof value === "number" && Number.isFinite(value)) {
     return value < 1_000_000_000_000 ? value * 1000 : value;
   }
@@ -740,16 +750,17 @@ export async function fetchMessagesForChat(
   let lastErrStatus = 0;
   let reachedWindowFloor = false;
 
-  // Shapes de body aceitos — primário (v2 oficial) + fallback keyRemoteJid (forks).
-  const buildPayload = (page: number, useKeyRemoteJid: boolean): Record<string, unknown> =>
-    useKeyRemoteJid
-      ? { where: { keyRemoteJid: jid }, page, offset: PAGE_SIZE }
-      : { where: { key: { remoteJid: jid } }, page, offset: PAGE_SIZE };
+  // Shapes de body aceitos — primário (v2 oficial) + fallback remoteJid + fallback keyRemoteJid (forks).
+  const buildPayload = (page: number, shape: "key" | "remoteJid" | "keyRemoteJid"): Record<string, unknown> => {
+    if (shape === "keyRemoteJid") return { where: { keyRemoteJid: jid }, page, offset: PAGE_SIZE };
+    if (shape === "remoteJid") return { where: { remoteJid: jid }, page, offset: PAGE_SIZE };
+    return { where: { key: { remoteJid: jid } }, page, offset: PAGE_SIZE };
+  };
 
-  let useKeyRemoteJid = false;
+  let activeShape: "key" | "remoteJid" | "keyRemoteJid" = "key";
   for (let page = 1; page <= maxPages; page++) {
     const r = await tryFindMessages(
-      cfg, instanceName, "POST", `/chat/findMessages/${inst}`, buildPayload(page, useKeyRemoteJid),
+      cfg, instanceName, "POST", `/chat/findMessages/${inst}`, buildPayload(page, activeShape),
     );
     if (!r.ok) {
       lastErrStatus = r.status;
@@ -759,33 +770,46 @@ export async function fetchMessagesForChat(
     lastStatus = r.status;
     let raw = extractRawMessages(r.body);
     // Fallback de shape: se a 1ª página vier vazia no shape primário, tenta
-    // keyRemoteJid uma vez antes de desistir.
-    if (raw.length === 0 && page === 1 && !useKeyRemoteJid) {
-      useKeyRemoteJid = true;
+    // remoteJid e keyRemoteJid antes de desistir.
+    if (raw.length === 0 && page === 1 && activeShape === "key") {
+      activeShape = "remoteJid";
       const r2 = await tryFindMessages(
-        cfg, instanceName, "POST", `/chat/findMessages/${inst}`, buildPayload(1, true),
+        cfg, instanceName, "POST", `/chat/findMessages/${inst}`, buildPayload(1, activeShape),
       );
       if (r2.ok) {
-        lastStatus = r2.status;
-        raw = extractRawMessages(r2.body);
-        diagnostics.push(`p1-keyRemoteJid=${raw.length}`);
-        if (raw.length > 0) {
-          collected.push(...raw);
-          if (readTotalPages(r2.body) === 1 || raw.length < PAGE_SIZE) break;
-          continue;
+        const raw2 = extractRawMessages(r2.body);
+        if (raw2.length > 0) {
+          raw = raw2;
+          lastStatus = r2.status;
+          diagnostics.push(`p1-remoteJid=${raw.length}`);
         }
       }
-      diagnostics.push(`p1=0`);
-      break;
+      if (raw.length === 0) {
+        activeShape = "keyRemoteJid";
+        const r3 = await tryFindMessages(
+          cfg, instanceName, "POST", `/chat/findMessages/${inst}`, buildPayload(1, activeShape),
+        );
+        if (r3.ok) {
+          const raw3 = extractRawMessages(r3.body);
+          if (raw3.length > 0) {
+            raw = raw3;
+            lastStatus = r3.status;
+            diagnostics.push(`p1-keyRemoteJid=${raw.length}`);
+          }
+        }
+      }
+      if (raw.length === 0) {
+        diagnostics.push("p1=0");
+        break;
+      }
     }
     diagnostics.push(`p${page}=${raw.length}`);
     if (raw.length === 0) break;
 
     // Para de paginar quando cruzar o piso da janela temporal (msgs desc).
     for (const m of raw) {
-      const tsRaw = (m as any)?.messageTimestamp ?? (m as any)?.timestamp;
-      const ts = typeof tsRaw === "string" ? Number(tsRaw) : tsRaw;
-      if (typeof ts === "number" && ts && ts < sinceUnix) {
+      const tsMs = toEpochMs((m as any)?.messageTimestamp ?? (m as any)?.timestamp ?? (m as any)?.message?.messageTimestamp ?? (m as any)?.createdAt);
+      if (tsMs && sinceUnix && tsMs < sinceUnix * 1000) {
         reachedWindowFloor = true;
       }
       collected.push(m);
@@ -820,10 +844,15 @@ function parseMessages(
   const messages: ImportedMessage[] = raw
     // deno-lint-ignore no-explicit-any
     .map((m: any): ImportedMessage | null => {
-      const tsRaw = m.messageTimestamp ?? m.timestamp;
-      const tsNum = typeof tsRaw === "string" ? Number(tsRaw) : tsRaw;
-      if (!tsNum) return null;
-      const msg = m.message ?? {};
+      const tsMs = toEpochMs(m.messageTimestamp ?? m.timestamp ?? m.message?.messageTimestamp ?? m.createdAt);
+      if (!tsMs) return null;
+
+      let msg = m.message ?? {};
+      if (msg.ephemeralMessage?.message) msg = msg.ephemeralMessage.message;
+      if (msg.viewOnceMessage?.message) msg = msg.viewOnceMessage.message;
+      if (msg.viewOnceMessageV2?.message) msg = msg.viewOnceMessageV2.message;
+      if (msg.documentWithCaptionMessage?.message) msg = msg.documentWithCaptionMessage.message;
+
       let mediaType: ImportedMessage["media_type"] = "text";
       let text = "";
       let audioBase64: string | null = null;
@@ -837,11 +866,14 @@ function parseMessages(
       else if (msg.imageMessage) { mediaType = "image"; text = msg.imageMessage.caption ?? ""; }
       else if (msg.videoMessage) { mediaType = "video"; text = msg.videoMessage.caption ?? ""; }
       else if (msg.documentMessage) { mediaType = "document"; text = msg.documentMessage.caption ?? ""; }
+      else if (msg.templateButtonReplyMessage?.selectedDisplayText) { text = msg.templateButtonReplyMessage.selectedDisplayText; }
+      else if (msg.buttonsResponseMessage?.selectedDisplayText) { text = msg.buttonsResponseMessage.selectedDisplayText; }
+      else if (msg.listResponseMessage?.title) { text = msg.listResponseMessage.title; }
 
       return {
         external_msg_id: m.key?.id ?? null,
         remote_jid: m.key?.remoteJid ?? remoteJid,
-        ts: new Date(tsNum * 1000).toISOString(),
+        ts: new Date(tsMs).toISOString(),
         from_me: !!m.key?.fromMe,
         push_name: m.pushName ?? null,
         media_type: mediaType,

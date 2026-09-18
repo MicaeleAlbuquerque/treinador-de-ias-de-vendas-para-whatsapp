@@ -21,6 +21,7 @@ function UploadPage() {
   const [fileName, setFileName] = useState("");
   const [zipInfo, setZipInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   const sellersQ = useQuery({
     queryKey: ["sellers"],
@@ -34,9 +35,7 @@ function UploadPage() {
     },
   });
 
-  async function onFile(e: ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  async function processFile(f: File) {
     setFileName(f.name);
     setZipInfo(null);
 
@@ -63,6 +62,34 @@ function UploadPage() {
       }
     } else {
       setFileText(await f.text());
+    }
+  }
+
+  async function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    await processFile(f);
+  }
+
+  function onDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }
+
+  function onDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }
+
+  async function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) {
+      await processFile(f);
     }
   }
 
@@ -141,7 +168,16 @@ function UploadPage() {
 
         <div>
           <label className="via-label">Arquivo (.txt ou .zip)</label>
-          <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary p-8 text-center text-sm text-muted-foreground hover:border-[color:var(--via-blue)]">
+          <label
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            className={`mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center text-sm transition-colors ${
+              isDragging
+                ? "border-[color:var(--via-blue)] bg-[color:var(--via-blue)]/10 text-foreground scale-[1.01]"
+                : "border-border bg-secondary text-muted-foreground hover:border-[color:var(--via-blue)]"
+            }`}
+          >
             {fileName?.toLowerCase().endsWith(".zip") ? (
               <FileArchive size={28} className="text-amber-600" />
             ) : fileName ? (

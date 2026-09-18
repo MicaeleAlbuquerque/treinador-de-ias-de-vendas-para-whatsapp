@@ -48,10 +48,34 @@ export async function recalculateDna(createdBy: string | null): Promise<DnaResul
     .eq("id", true)
     .maybeSingle();
 
-  const individual = !!settings?.dna_individual_mode;
-  const minWon = individual ? Math.min(settings?.dna_min_won ?? 10, 5) : (settings?.dna_min_won ?? 10);
-  const minLost = individual ? Math.min(settings?.dna_min_lost ?? 5, 2) : (settings?.dna_min_lost ?? 5);
-  const minSellers = individual ? 1 : (settings?.dna_min_sellers ?? 3);
+  // Garante existência de pelo menos 1 vendedor padrão e vincula conversas sem vendedor
+  const { data: existingSellers } = await supabaseAdmin
+    .from("sellers")
+    .select("id, name")
+    .order("created_at", { ascending: true });
+
+  let defaultSellerId: string | null = existingSellers?.[0]?.id ?? null;
+  if (!defaultSellerId) {
+    const { data: newSeller } = await supabaseAdmin
+      .from("sellers")
+      .insert({ name: "Atendimento Geral", phone: "5500000000000" })
+      .select("id")
+      .single();
+    defaultSellerId = newSeller?.id ?? null;
+  }
+
+  if (defaultSellerId) {
+    await supabaseAdmin
+      .from("conversations")
+      .update({ seller_id: defaultSellerId })
+      .is("seller_id", null);
+  }
+
+  const sellerCount = (existingSellers?.length ?? 0) || 1;
+  const individual = !!settings?.dna_individual_mode || sellerCount <= 1;
+  const minWon = individual ? Math.min(settings?.dna_min_won ?? 5, 3) : (settings?.dna_min_won ?? 10);
+  const minLost = individual ? Math.min(settings?.dna_min_lost ?? 2, 2) : (settings?.dna_min_lost ?? 5);
+  const minSellers = individual ? 1 : Math.min(settings?.dna_min_sellers ?? 3, sellerCount);
   const useQuality = settings?.dna_use_quality_score !== false;
   const minGood = settings?.dna_quality_min_good ?? 75;
   const maxBad = settings?.dna_quality_max_bad ?? 40;

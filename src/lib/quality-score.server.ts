@@ -63,10 +63,21 @@ function computeOverall(scores: Record<string, number>): number {
 }
 
 function formatTranscript(messages: Array<{ sender_role: string; text: string | null; audio_transcript: string | null; ts: string }>): string {
-  return messages
+  // Se a conversa for muito longa (> 80 msgs), foca no início (abertura/descoberta) e final (objeção/fechamento)
+  let msgsToFormat = messages;
+  let omitted = 0;
+  if (messages.length > 80) {
+    const head = messages.slice(0, 30);
+    const tail = messages.slice(-50);
+    omitted = messages.length - 80;
+    msgsToFormat = [...head, { sender_role: "system", text: `[... ${omitted} mensagens intermediárias resumidas ...]`, audio_transcript: null, ts: "" }, ...tail];
+  }
+
+  return msgsToFormat
     .map((m) => {
+      if (m.sender_role === "system") return m.text!;
       const who = m.sender_role === "seller" ? "VENDEDOR" : "LEAD";
-      const body = (m.text ?? m.audio_transcript ?? "[mídia]").slice(0, 800);
+      const body = (m.text ?? m.audio_transcript ?? "[mídia]").slice(0, 600);
       return `[${who}] ${body}`;
     })
     .join("\n");
@@ -139,8 +150,18 @@ export async function scoreConversationQuality(conversationId: string): Promise<
       parsed = JSON.parse(match[0]) as ScoreResponse;
     }
   }
+
+  // Suporte tanto para {"scores": {...}} quanto para rubricas diretamente na raiz {"abertura": 8, ...}
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Resposta IA inválida.");
+  }
   if (!parsed.scores || typeof parsed.scores !== "object") {
-    throw new Error("Resposta IA sem campo 'scores'.");
+    if (typeof (parsed as any).abertura === "number") {
+      const { highlights, gaps, summary, ...scoresOnly } = parsed as any;
+      parsed = { scores: scoresOnly, highlights, gaps, summary };
+    } else {
+      throw new Error("Resposta IA sem campo 'scores'.");
+    }
   }
 
   const overall = computeOverall(parsed.scores);
@@ -192,18 +213,18 @@ export async function processQualityScoreJob(jobId: string): Promise<void> {
       .eq("id", jobId);
   } catch (e) {
     const msg = (e as Error).message;
-    if (e instanceof LlmCapHitError) {
-      // Re-enfileira: volta pra pending pra retomar amanhã.
+    if (e instanceof LlmCapHitError || msg.includes("429") || msg.includes("Quota exceeded") || msg.includes("rate-limits")) {
+      // Re-enfileira: volta pra pending pra retomar assim que a quota de minuto liberar
       await supabaseAdmin
         .from("quality_score_jobs")
         .update({
           status: "pending",
           locked_at: null,
-          error_text: msg.slice(0, 500),
+          error_text: "Aguardando quota da IA (rate limit transitório 429)",
           attempt_count: (job.attempt_count ?? 0) + 1,
         })
         .eq("id", jobId);
-      return;
+      throw e;
     }
     await supabaseAdmin
       .from("quality_score_jobs")
@@ -214,6 +235,7 @@ export async function processQualityScoreJob(jobId: string): Promise<void> {
         attempt_count: (job.attempt_count ?? 0) + 1,
       })
       .eq("id", jobId);
+    throw e;
   }
 }
 
