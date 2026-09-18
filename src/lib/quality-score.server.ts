@@ -129,10 +129,15 @@ export async function scoreConversationQuality(conversationId: string): Promise<
   try {
     parsed = JSON.parse(raw) as ScoreResponse;
   } catch {
-    // tenta achar o primeiro {...} se modelo bagunçar
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("Resposta IA não-JSON.");
-    parsed = JSON.parse(match[0]) as ScoreResponse;
+    const cleaned = raw.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
+    try {
+      parsed = JSON.parse(cleaned) as ScoreResponse;
+    } catch {
+      // tenta achar o primeiro {...} se modelo bagunçar
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("Resposta IA não-JSON.");
+      parsed = JSON.parse(match[0]) as ScoreResponse;
+    }
   }
   if (!parsed.scores || typeof parsed.scores !== "object") {
     throw new Error("Resposta IA sem campo 'scores'.");
@@ -170,7 +175,7 @@ export async function scoreAndPersistQuality(conversationId: string): Promise<{
 export async function processQualityScoreJob(jobId: string): Promise<void> {
   const { data: job } = await supabaseAdmin
     .from("quality_score_jobs")
-    .select("id, conversation_id")
+    .select("id, conversation_id, attempt_count")
     .eq("id", jobId)
     .maybeSingle();
   if (!job) return;
@@ -178,7 +183,12 @@ export async function processQualityScoreJob(jobId: string): Promise<void> {
     await scoreAndPersistQuality(job.conversation_id);
     await supabaseAdmin
       .from("quality_score_jobs")
-      .update({ status: "done", finished_at: new Date().toISOString(), error_text: null })
+      .update({
+        status: "done",
+        finished_at: new Date().toISOString(),
+        error_text: null,
+        attempt_count: (job.attempt_count ?? 0) + 1,
+      })
       .eq("id", jobId);
   } catch (e) {
     const msg = (e as Error).message;
@@ -186,18 +196,28 @@ export async function processQualityScoreJob(jobId: string): Promise<void> {
       // Re-enfileira: volta pra pending pra retomar amanhã.
       await supabaseAdmin
         .from("quality_score_jobs")
-        .update({ status: "pending", locked_at: null, error_text: msg.slice(0, 500) })
+        .update({
+          status: "pending",
+          locked_at: null,
+          error_text: msg.slice(0, 500),
+          attempt_count: (job.attempt_count ?? 0) + 1,
+        })
         .eq("id", jobId);
       return;
     }
     await supabaseAdmin
       .from("quality_score_jobs")
-      .update({ status: "failed", finished_at: new Date().toISOString(), error_text: msg.slice(0, 500) })
+      .update({
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        error_text: msg.slice(0, 500),
+        attempt_count: (job.attempt_count ?? 0) + 1,
+      })
       .eq("id", jobId);
   }
 }
 
-// Cria jobs pra conversas sem score (idempotente — unique parcial cuida do resto).
+// Cria jobs pra conversas sem score (idempotente e sem depender de constraint unique no Postgres).
 export async function ensureQualityScoreJobs(batchSize = 100): Promise<number> {
   const { data: pending } = await supabaseAdmin
     .from("conversations")
@@ -206,13 +226,100 @@ export async function ensureQualityScoreJobs(batchSize = 100): Promise<number> {
     .gte("message_count", 2) // ignora conversas vazias/uma msg
     .limit(batchSize);
   if (!pending || pending.length === 0) return 0;
-  const rows = pending.map((c) => ({ conversation_id: c.id }));
-  const { error } = await supabaseAdmin
+
+  const convIds = pending.map((c) => c.id);
+
+  // Consulta jobs existentes para não duplicar e reativar falhas antigas
+  const { data: existingJobs } = await supabaseAdmin
     .from("quality_score_jobs")
-    .upsert(rows, { onConflict: "conversation_id", ignoreDuplicates: true });
-  if (error) {
-    console.error("[quality] ensureJobs failed", error.message);
-    return 0;
+    .select("id, conversation_id, status")
+    .in("conversation_id", convIds);
+
+  const existingByConv = new Map((existingJobs ?? []).map((j) => [j.conversation_id, j]));
+
+  // Conversas sem job algum
+  const toInsert = convIds
+    .filter((id) => !existingByConv.has(id))
+    .map((id) => ({ conversation_id: id, status: "pending" }));
+
+  // Conversas com jobs que falharam anteriormente: re-enfileira para pending para poderem ser reavaliadas
+  const failedJobIds = (existingJobs ?? [])
+    .filter((j) => j.status === "failed")
+    .map((j) => j.id);
+
+  if (failedJobIds.length > 0) {
+    await supabaseAdmin
+      .from("quality_score_jobs")
+      .update({
+        status: "pending",
+        locked_at: null,
+        error_text: null,
+        started_at: null,
+        finished_at: null,
+      })
+      .in("id", failedJobIds);
   }
-  return rows.length;
+
+  if (toInsert.length > 0) {
+    const { error } = await supabaseAdmin
+      .from("quality_score_jobs")
+      .insert(toInsert);
+    if (error) {
+      console.error("[quality] ensureJobs insert failed", error.message);
+      return failedJobIds.length;
+    }
+  }
+
+  return toInsert.length + failedJobIds.length;
+}
+
+// Reivindica jobs pendentes para processamento
+export async function claimQualityScoreJobs(batchSize = 10): Promise<string[]> {
+  // 1. Tenta via RPC se disponível e sem erros de formato
+  try {
+    const { data: claimedRaw, error } = await supabaseAdmin.rpc("claim_pending_jobs", {
+      _table: "quality_score_jobs",
+      _batch_size: batchSize,
+    });
+    if (!error && Array.isArray(claimedRaw) && claimedRaw.length > 0) {
+      return claimedRaw as string[];
+    }
+  } catch {
+    // Falha do RPC (ex: bug de array literal no Postgres)
+  }
+
+  // 2. Libera órfãos que ficaram travados há mais de 5 minutos
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  await supabaseAdmin
+    .from("quality_score_jobs")
+    .update({ status: "pending", locked_at: null })
+    .eq("status", "running")
+    .lt("locked_at", fiveMinutesAgo);
+
+  // 3. Busca candidatos pendentes
+  const { data: candidates } = await supabaseAdmin
+    .from("quality_score_jobs")
+    .select("id")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true })
+    .limit(batchSize);
+
+  if (!candidates || candidates.length === 0) return [];
+
+  const candidateIds = candidates.map((c) => c.id);
+  const now = new Date().toISOString();
+
+  // 4. Lock atômico nos candidatos selecionados
+  const { data: claimed } = await supabaseAdmin
+    .from("quality_score_jobs")
+    .update({
+      status: "running",
+      locked_at: now,
+      started_at: now,
+    })
+    .in("id", candidateIds)
+    .eq("status", "pending")
+    .select("id");
+
+  return (claimed ?? []).map((c) => c.id);
 }

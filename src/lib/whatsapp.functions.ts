@@ -297,15 +297,13 @@ export const cleanupInvalidConversations = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
 
-    // Lê todos os lead_phone e filtra os que não são numéricos no client
-    // (Postgres ~ '^[^0-9]' funcionaria, mas evitamos depender de extension).
+    // Lê todos os lead_phone e filtra os que não são numéricos ou sem mensagens
     const { data: convs } = await supabaseAdmin
       .from("conversations")
-      .select("id, lead_phone")
-      .eq("source", "evolution");
+      .select("id, lead_phone, message_count");
 
     const invalidIds = (convs ?? [])
-      .filter((c) => !isValidPhone(c.lead_phone))
+      .filter((c) => !isValidPhone(c.lead_phone) || (c.message_count ?? 0) === 0)
       .map((c) => c.id);
 
     if (invalidIds.length === 0) {
@@ -1032,13 +1030,14 @@ export const assignSellerToConversation = createServerFn({ method: "POST" })
 
 export const uploadWhatsAppExport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
-    (data: { sellerId: string; fileText: string; fileName?: string }) =>
+  .validator(
+    (data: { sellerId: string; fileText: string; fileName?: string; leadPhone?: string }) =>
       z
         .object({
           sellerId: z.string().uuid(),
           fileText: z.string().min(1).max(5_000_000),
           fileName: z.string().max(255).optional(),
+          leadPhone: z.string().max(30).optional(),
         })
         .parse(data),
   )
@@ -1062,7 +1061,18 @@ export const uploadWhatsAppExport = createServerFn({ method: "POST" })
     const leadName =
       parsed.find((p) => p.authorName.toLowerCase().trim() !== sellerNameLower && !p.isSystem)
         ?.authorName ?? "Lead";
-    const leadPhone = `upload:${seller.id}:${Date.now()}:${leadName.toLowerCase().replace(/\s+/g, "-").slice(0, 24)}`;
+
+    const digitsOnly = leadName.replace(/\D/g, "");
+    let leadPhone: string;
+    if (data.leadPhone && isValidPhone(data.leadPhone.trim())) {
+      leadPhone = data.leadPhone.trim();
+    } else if (digitsOnly.length >= 8 && digitsOnly.length <= 15) {
+      leadPhone = leadName.trim().startsWith("+") ? `+${digitsOnly}` : digitsOnly;
+    } else {
+      leadPhone = `+5500${Date.now().toString().slice(-8)}${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+
+    const leadNameAnon = digitsOnly.length >= 8 ? `Lead ${maskPhone(leadName)}` : `Lead ${leadName}`;
 
     const firstTs = parsed[0]!.ts;
     const lastTs = parsed[parsed.length - 1]!.ts;
@@ -1072,7 +1082,7 @@ export const uploadWhatsAppExport = createServerFn({ method: "POST" })
       .insert({
         seller_id: seller.id,
         lead_phone: leadPhone,
-        lead_name_anon: `Lead ${maskPhone(leadName)}`,
+        lead_name_anon: leadNameAnon,
         source: "upload",
         first_msg_at: firstTs,
         last_msg_at: lastTs,

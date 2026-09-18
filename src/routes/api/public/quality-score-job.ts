@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { ensureQualityScoreJobs, processQualityScoreJob } from "@/lib/quality-score.server";
+import { ensureQualityScoreJobs, claimQualityScoreJobs, processQualityScoreJob } from "@/lib/quality-score.server";
 import { isCronAuthorized } from "@/lib/cron-auth.server";
 
 async function handle(request: Request) {
@@ -13,17 +12,7 @@ async function handle(request: Request) {
 
   await ensureQualityScoreJobs(200);
 
-  const { data, error } = await supabaseAdmin.rpc("claim_pending_jobs", {
-    _table: "quality_score_jobs",
-    _batch_size: 10,
-  });
-  if (error) {
-    return new Response(JSON.stringify({ ok: false, error: error.message }), {
-      status: 500,
-      headers: { "content-type": "application/json" },
-    });
-  }
-  const claimed = (data as unknown as string[]) ?? [];
+  const claimed = await claimQualityScoreJobs(10);
   if (claimed.length === 0) {
     return new Response(JSON.stringify({ ok: true, processed: 0 }), {
       headers: { "content-type": "application/json" },

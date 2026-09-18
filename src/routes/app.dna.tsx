@@ -33,8 +33,16 @@ function DnaPage() {
   // Versão de playbook em visualização (null = a ativa/atual).
   const [viewingSnapshotId, setViewingSnapshotId] = useState<string | null>(null);
 
+  const [tab, setTab] = useState<Tab>("ranking");
+  const [generatingPlaybook, setGeneratingPlaybook] = useState(false);
+  const [recalculatingDna, setRecalculatingDna] = useState(false);
+  const [evaluatingQuality, setEvaluatingQuality] = useState(false);
+  const [togglingQuality, setTogglingQuality] = useState(false);
+  const [savingPlaybookEdit, setSavingPlaybookEdit] = useState(false);
+  const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null);
+
   async function toggleUseQuality(next: boolean) {
-    setBusy(true);
+    setTogglingQuality(true);
     try {
       await saveQualityCfgFn({
         data: {
@@ -46,10 +54,8 @@ function DnaPage() {
       toast.success(next ? "Análise IA habilitada." : "Análise IA desabilitada.");
       qc.invalidateQueries({ queryKey: ["dna-settings"] });
     } catch (e) { toast.error((e as Error).message); }
-    finally { setBusy(false); }
+    finally { setTogglingQuality(false); }
   }
-  const [tab, setTab] = useState<Tab>("ranking");
-  const [busy, setBusy] = useState(false);
 
   const settingsQ = useQuery({
     queryKey: ["dna-settings"],
@@ -92,7 +98,7 @@ function DnaPage() {
       toast.error("Nenhuma versão base pra editar.");
       return;
     }
-    setBusy(true);
+    setSavingPlaybookEdit(true);
     try {
       await savePlaybookEditFn({ data: { systemPrompt, baseSnapshotId: base } });
       toast.success("Edição salva como nova versão.");
@@ -102,12 +108,12 @@ function DnaPage() {
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      setSavingPlaybookEdit(false);
     }
   }
 
   async function restorePlaybookVersion(snapshotId: string) {
-    setBusy(true);
+    setRestoringVersionId(snapshotId);
     try {
       await setActivePlaybookFn({ data: { snapshotId } });
       toast.success("Versão restaurada como playbook ativo.");
@@ -117,12 +123,12 @@ function DnaPage() {
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      setBusy(false);
+      setRestoringVersionId(null);
     }
   }
 
   async function runPlaybookGenerate() {
-    setBusy(true);
+    setGeneratingPlaybook(true);
     try {
       const r = await generatePlaybookFn({}) as any;
       if (r.ok) {
@@ -138,11 +144,11 @@ function DnaPage() {
       }
     } catch (e) {
       toast.error((e as Error).message);
-    } finally { setBusy(false); }
+    } finally { setGeneratingPlaybook(false); }
   }
 
   async function runQualityBatch() {
-    setBusy(true);
+    setEvaluatingQuality(true);
     try {
       const r = await scoreQualityFn({ data: { batch: 10 } });
       if (r.processed === 0 && r.enqueued === 0) {
@@ -156,7 +162,7 @@ function DnaPage() {
       qc.invalidateQueries({ queryKey: ["conversations"] });
     } catch (e) {
       toast.error((e as Error).message);
-    } finally { setBusy(false); }
+    } finally { setEvaluatingQuality(false); }
   }
   const snapId = settingsQ.data?.current_dna_snapshot_id ?? null;
 
@@ -214,7 +220,7 @@ function DnaPage() {
   });
 
   async function recalc() {
-    setBusy(true);
+    setRecalculatingDna(true);
     try {
       const r = await recalcFn() as any;
       if (r?.ok) {
@@ -232,7 +238,7 @@ function DnaPage() {
         );
       }
     } catch (e) { toast.error((e as Error).message); }
-    finally { setBusy(false); }
+    finally { setRecalculatingDna(false); }
   }
 
   if (!snapId) {
@@ -244,7 +250,9 @@ function DnaPage() {
         <PlaybookPanel
           playbook={displayedPlaybook}
           loading={displayedLoading}
-          busy={busy}
+          generating={generatingPlaybook}
+          saving={savingPlaybookEdit}
+          restoringVersionId={restoringVersionId}
           onGenerate={runPlaybookGenerate}
           totalConversations={qualityStatsQ.data?.total ?? 0}
           qualityEvaluated={qualityStatsQ.data?.evaluated ?? 0}
@@ -257,7 +265,8 @@ function DnaPage() {
         />
         <QualityScorePanel
           stats={qualityStatsQ.data}
-          busy={busy}
+          evaluating={evaluatingQuality}
+          toggling={togglingQuality}
           onRun={runQualityBatch}
           onToggleUseQuality={toggleUseQuality}
           useQuality={settingsQ.data?.dna_use_quality_score !== false}
@@ -279,8 +288,8 @@ function DnaPage() {
             </p>
           </div>
           {isAdmin && (
-            <button disabled={busy} onClick={recalc} className="via-btn via-btn-secondary">
-              {busy ? "Calculando…" : "Tentar calcular DNA Avançado"}
+            <button disabled={recalculatingDna} onClick={recalc} className="via-btn via-btn-secondary">
+              {recalculatingDna ? "Calculando…" : "Tentar calcular DNA Avançado"}
             </button>
           )}
         </div>
@@ -308,7 +317,9 @@ function DnaPage() {
       <PlaybookPanel
         playbook={displayedPlaybook}
         loading={displayedLoading}
-        busy={busy}
+        generating={generatingPlaybook}
+        saving={savingPlaybookEdit}
+        restoringVersionId={restoringVersionId}
         onGenerate={runPlaybookGenerate}
         totalConversations={qualityStatsQ.data?.total ?? 0}
         qualityEvaluated={qualityStatsQ.data?.evaluated ?? 0}
@@ -321,7 +332,8 @@ function DnaPage() {
       />
       <QualityScorePanel
         stats={qualityStatsQ.data}
-        busy={busy}
+        evaluating={evaluatingQuality}
+        toggling={togglingQuality}
         onRun={runQualityBatch}
         onToggleUseQuality={toggleUseQuality}
         useQuality={settingsQ.data?.dna_use_quality_score !== false}
@@ -339,14 +351,14 @@ function DnaPage() {
               · Top performer: <strong>{topName}</strong>
             </p>
           </div>
-          {isAdmin && <button disabled={busy} onClick={recalc} className="via-btn via-btn-secondary">{busy ? "Calculando…" : "Recalcular DNA"}</button>}
+          {isAdmin && <button disabled={recalculatingDna} onClick={recalc} className="via-btn via-btn-secondary">{recalculatingDna ? "Calculando…" : "Recalcular DNA"}</button>}
         </div>
       </div>
 
       <div className="flex gap-2 border-b border-border">
         {tabs.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-3 py-2 text-sm font-bold uppercase tracking-wide border-b-2 ${tab === t.id ? "border-[color:var(--via-navy)] text-foreground" : "border-transparent text-muted-foreground"}`}>
+            className={`px-3 py-2 text-sm font-bold uppercase tracking-wide border-b-2 ${tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`}>
             {t.label}
           </button>
         ))}
@@ -468,7 +480,8 @@ function DnaPage() {
 
 function QualityScorePanel({
   stats,
-  busy,
+  evaluating,
+  toggling,
   onRun,
   onToggleUseQuality,
   useQuality,
@@ -476,7 +489,8 @@ function QualityScorePanel({
   maxBad,
 }: {
   stats: { total: number; evaluated: number; good: number; bad: number; pendingJobs: number; failedJobs: number } | undefined;
-  busy: boolean;
+  evaluating: boolean;
+  toggling: boolean;
   onRun: () => void;
   onToggleUseQuality: (next: boolean) => void;
   useQuality: boolean;
@@ -492,7 +506,7 @@ function QualityScorePanel({
   const pct = stats.total > 0 ? Math.round((stats.evaluated / stats.total) * 100) : 0;
 
   let buttonLabel: string;
-  let buttonDisabled = busy;
+  let buttonDisabled = evaluating;
   let buttonTitle = "";
   if (stats.total === 0) {
     buttonLabel = "Importe conversas primeiro";
@@ -502,7 +516,7 @@ function QualityScorePanel({
     buttonLabel = "Tudo avaliado";
     buttonDisabled = true;
   } else {
-    buttonLabel = busy ? "Avaliando…" : `Avaliar próximas 10 (${remaining} restantes)`;
+    buttonLabel = evaluating ? "Avaliando…" : `Avaliar próximas 10 (${remaining} restantes)`;
     buttonTitle = "Avalia 10 conversas neste batch. Repita pra avançar.";
   }
 
@@ -539,10 +553,10 @@ function QualityScorePanel({
           </button>
           <button
             onClick={() => onToggleUseQuality(!useQuality)}
-            disabled={busy}
+            disabled={toggling}
             className="text-xs text-muted-foreground underline hover:text-foreground"
           >
-            {useQuality ? "Desativar uso no DNA" : "Ativar uso no DNA"}
+            {toggling ? "Atualizando…" : useQuality ? "Desativar uso no DNA" : "Ativar uso no DNA"}
           </button>
         </div>
       </div>
@@ -598,8 +612,8 @@ function TierBanner({ level }: { level: "basic" | "advanced" }) {
     );
   }
   return (
-    <div className="rounded-xl border border-[color:var(--via-navy)]/30 bg-muted/40 px-4 py-3 flex items-center gap-3 mt-2">
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[color:var(--via-navy)] text-white">
+    <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 flex items-center gap-3 mt-2">
+      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
         <Trophy size={18} />
       </div>
       <div className="flex-1">
@@ -616,7 +630,9 @@ function TierBanner({ level }: { level: "basic" | "advanced" }) {
 function PlaybookPanel({
   playbook,
   loading,
-  busy,
+  generating,
+  saving,
+  restoringVersionId,
   onGenerate,
   totalConversations,
   qualityEvaluated,
@@ -629,7 +645,9 @@ function PlaybookPanel({
 }: {
   playbook: any;
   loading: boolean;
-  busy: boolean;
+  generating: boolean;
+  saving: boolean;
+  restoringVersionId: string | null;
   onGenerate: () => void;
   totalConversations: number;
   qualityEvaluated: number;
@@ -681,7 +699,7 @@ function PlaybookPanel({
           </p>
         </div>
         <button
-          disabled={busy || !canGenerate}
+          disabled={generating || !canGenerate}
           onClick={onGenerate}
           className="via-btn via-btn-primary"
           title={canGenerate
@@ -690,7 +708,7 @@ function PlaybookPanel({
               : "Modo refinado: usa suas conversas avaliadas (~10-20s)."
             : "Importe pelo menos 3 conversas com 4+ mensagens antes."}
         >
-          {busy ? "Gerando…" : playbook ? "Regenerar playbook" : "Gerar playbook agora"}
+          {generating ? "Gerando…" : playbook ? "Regenerar playbook" : "Gerar playbook agora"}
         </button>
       </div>
 
@@ -737,11 +755,11 @@ function PlaybookPanel({
                     </button>
                     {!isActive && (
                       <button
-                        disabled={busy}
+                        disabled={restoringVersionId === h.id}
                         onClick={() => onRestoreVersion?.(h.id)}
                         className="text-xs px-2 py-1 rounded border border-border hover:bg-muted shrink-0"
                       >
-                        Restaurar
+                        {restoringVersionId === h.id ? "Restaurando…" : "Restaurar"}
                       </button>
                     )}
                   </li>
@@ -760,11 +778,11 @@ function PlaybookPanel({
           </span>
           <span className="flex gap-2">
             <button
-              disabled={busy}
+              disabled={restoringVersionId === viewingSnapshotId}
               onClick={() => onRestoreVersion?.(viewingSnapshotId!)}
               className="via-btn via-btn-sm via-btn-primary"
             >
-              Restaurar esta versão
+              {restoringVersionId === viewingSnapshotId ? "Restaurando…" : "Restaurar esta versão"}
             </button>
             <button onClick={() => onSelectVersion?.(null)} className="via-btn via-btn-sm via-btn-secondary">
               Voltar pra ativa
@@ -847,11 +865,11 @@ function PlaybookPanel({
                 />
                 <div className="flex flex-wrap items-center gap-2">
                   <button
-                    disabled={busy || !draft.trim()}
+                    disabled={saving || !draft.trim()}
                     onClick={() => { onSaveEdit?.(draft); setEditing(false); }}
                     className="via-btn via-btn-sm via-btn-primary"
                   >
-                    {busy ? "Salvando…" : "Salvar como nova versão"}
+                    {saving ? "Salvando…" : "Salvar como nova versão"}
                   </button>
                   <button onClick={() => setEditing(false)} className="via-btn via-btn-sm via-btn-secondary">
                     Cancelar
@@ -977,7 +995,7 @@ function PlaybookPanel({
             />
             <KnowledgeBaseSection
               systemPrompt={playbook.system_prompt ?? ""}
-              busy={busy}
+              saving={saving}
               onSaveEdit={onSaveEdit}
               isOpen={openSection === "base"}
               onToggle={() => setOpenSection(openSection === "base" ? null : "base")}
@@ -1033,10 +1051,10 @@ function RecommendedModelSection({ isOpen, onToggle }: { isOpen: boolean; onTogg
 
 // ---- Kit: checklist da base de conhecimento (extrai placeholders e injeta) ----
 function KnowledgeBaseSection({
-  systemPrompt, busy, onSaveEdit, isOpen, onToggle,
+  systemPrompt, saving, onSaveEdit, isOpen, onToggle,
 }: {
   systemPrompt: string;
-  busy: boolean;
+  saving: boolean;
   onSaveEdit?: (s: string) => void;
   isOpen: boolean;
   onToggle: () => void;
@@ -1096,11 +1114,11 @@ function KnowledgeBaseSection({
               <Copy size={12} /> Copiar prompt preenchido
             </button>
             <button
-              disabled={busy || filledCount === 0}
+              disabled={saving || filledCount === 0}
               className="via-btn via-btn-sm via-btn-primary"
               onClick={() => onSaveEdit?.(buildFilled())}
             >
-              Salvar preenchido como nova versão
+              {saving ? "Salvando…" : "Salvar preenchido como nova versão"}
             </button>
           </div>
         </div>

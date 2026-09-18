@@ -34,10 +34,10 @@ type ConvRow = {
 };
 
 const OUTCOME_BADGE: Record<string, string> = {
-  won: "bg-green-100 text-green-800 border-green-200",
-  lost: "bg-red-100 text-red-700 border-red-200",
-  in_progress: "bg-amber-100 text-amber-800 border-amber-200",
-  unknown: "bg-zinc-100 text-zinc-600 border-zinc-200",
+  won: "bg-green-100 text-green-800 border-green-200 dark:bg-green-950/50 dark:text-green-300 dark:border-green-800",
+  lost: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800",
+  in_progress: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
+  unknown: "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700",
 };
 
 const OUTCOME_LABEL: Record<string, string> = {
@@ -151,7 +151,7 @@ function ConversationsList() {
     const total = all.length;
     const withSeller = all.filter((c) => c.seller_id).length;
     const withOutcome = all.filter((c) => c.outcome !== "unknown").length;
-    const invalid = all.filter((c) => !c.lead_phone || !/^\+?\d{6,20}$/.test(c.lead_phone)).length;
+    const invalid = all.filter((c) => !c.lead_phone || !/^\+?\d{6,20}$/.test(c.lead_phone) || (c.message_count ?? 0) === 0).length;
     return {
       total,
       pctSeller: total ? Math.round((withSeller / total) * 100) : 0,
@@ -164,7 +164,7 @@ function ConversationsList() {
   const wipeFn = useServerFn(wipeEvolutionConversations);
   const [cleaning, setCleaning] = useState(false);
   async function onCleanup() {
-    if (!confirm(`Apagar conversas inválidas (lead_phone não-numérico, ex: cuids da Evolution v2)? Mensagens caem em cascata. Não desfaz.`)) return;
+    if (!confirm(`Apagar conversas inválidas (lead_phone não-numérico ou sem mensagens)? Mensagens caem em cascata. Não desfaz.`)) return;
     setCleaning(true);
     try {
       const r = await cleanupFn({});
@@ -199,7 +199,7 @@ function ConversationsList() {
               onClick={onCleanup}
               disabled={cleaning}
               className="via-btn via-btn-secondary inline-flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
-              title="Remove conversas com lead_phone não-numérico (resíduo de bug do parser JID Evolution v2)."
+              title="Remove conversas com telefone inválido ou sem mensagens."
             >
               <Trash2 size={14} /> {cleaning ? "Limpando…" : `Limpar ${kpis.invalid} inválida(s)`}
             </button>
@@ -224,7 +224,7 @@ function ConversationsList() {
           <div className="text-sm flex-1">
             <div className="font-semibold">{kpis.invalid} conversa(s) inválida(s) detectada(s)</div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              São conversas com lead_phone não-numérico — geralmente cuids internos da Evolution v2 retornados antes do fix. Não dá pra cruzar com webhooks reais e não têm mensagens. Use o botão "Limpar" no header pra remover.
+              São conversas com lead_phone não-numérico ou vazias (sem mensagens). Use o botão "Limpar" no header pra remover.
             </p>
           </div>
         </div>

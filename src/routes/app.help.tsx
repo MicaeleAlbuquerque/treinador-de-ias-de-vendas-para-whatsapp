@@ -37,7 +37,7 @@ function HelpLayout() {
                           params={{ slug: a.slug }}
                           className={`block rounded-md px-3 py-1.5 text-sm transition-colors ${
                             active
-                              ? "bg-secondary text-[color:var(--via-navy)]"
+                              ? "bg-secondary text-foreground font-semibold"
                               : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                           }`}
                         >

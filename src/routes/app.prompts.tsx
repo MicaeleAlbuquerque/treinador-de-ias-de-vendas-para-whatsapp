@@ -80,7 +80,7 @@ function PromptsPage() {
         isAdmin ? (
           <>
             <div className="flex items-center gap-2 pt-2">
-              <Trophy size={16} className="text-[color:var(--via-navy)]" />
+              <Trophy size={16} className="text-foreground" />
               <h2 className="text-lg font-semibold">Exports avançados (DNA Tier 2)</h2>
               <span className="text-xs text-muted-foreground">
                 snapshot <Link to="/app/dna" className="underline">{snapId.slice(0, 8)}</Link>

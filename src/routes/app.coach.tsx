@@ -223,7 +223,7 @@ function CoachPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               {statusQ.data?.baseMode === "dna" ? (
-                <Brain className="text-[color:var(--via-navy)]" size={20} />
+                <Brain className="text-foreground" size={20} />
               ) : (
                 <BookOpen className="text-[color:var(--via-blue)]" size={20} />
               )}

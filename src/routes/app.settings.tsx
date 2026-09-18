@@ -94,7 +94,7 @@ function SettingsPage() {
       <div className="flex flex-wrap gap-2 border-b border-border">
         {tabs.map((t) => (
           <button key={t.id} type="button" onClick={() => setTab(t.id)}
-            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-b-2 ${tab === t.id ? "border-[color:var(--via-navy)] text-foreground" : "border-transparent text-muted-foreground"}`}>
+            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-b-2 ${tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`}>
             {t.label}
           </button>
         ))}
@@ -1448,7 +1448,7 @@ function BusinessHoursSettings() {
         <div className="mt-1 flex gap-1">
           {DAYS.map((label, idx) => (
             <button key={idx} type="button" onClick={() => toggleDay(idx)}
-              className={`flex-1 rounded border px-2 py-2 text-xs ${days.includes(idx) ? "bg-[color:var(--via-navy)] text-white border-transparent" : "bg-white text-muted-foreground"}`}>
+              className={`flex-1 rounded border px-2 py-2 text-xs transition-colors ${days.includes(idx) ? "bg-primary text-primary-foreground border-transparent" : "bg-card text-muted-foreground border-border hover:bg-secondary"}`}>
               {label}
             </button>
           ))}
@@ -1491,14 +1491,12 @@ function AIAccountSettings() {
     <form onSubmit={save} className="via-card space-y-4">
       <h3 className="text-lg">Conta da IA</h3>
       <p className="text-xs text-muted-foreground">
-        Com uma chave OpenAI cadastrada, o sistema usa a OpenAI (<strong>gpt-4o-mini</strong>) pra gerar
-        <strong> todos os outputs de IA</strong> — avaliação de qualidade, Playbook, etapas e a Coach — além da
-        transcrição de áudio (Whisper). Sem chave, usamos o Lovable AI (Gemini 2.5 Flash), que também é o fallback
-        automático se a OpenAI falhar.
+        Se o checkbox estiver desmarcado, o sistema usa automaticamente o <strong>Google Gemini (Gemini 2.5 Flash)</strong> configurado no seu arquivo <code>.env</code> (<code>GEMINI_API_KEY</code>).
+        Ative a opção abaixo apenas se quiser usar a sua chave da OpenAI (<strong>gpt-4o-mini</strong> e Whisper).
       </p>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-        Usar minha chave OpenAI (prioritária sobre o Lovable AI)
+        Usar minha chave OpenAI (prioritária sobre o Gemini)
       </label>
       {enabled && (
         <div>

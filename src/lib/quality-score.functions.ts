@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { scoreAndPersistQuality, ensureQualityScoreJobs, processQualityScoreJob } from "./quality-score.server";
+import { scoreAndPersistQuality, ensureQualityScoreJobs, claimQualityScoreJobs, processQualityScoreJob } from "./quality-score.server";
 
 async function assertAdmin(_supabase: unknown, userId: string) {
   if (!userId) throw new Error("Não autenticado.");
@@ -29,22 +29,7 @@ export const scoreAllPendingQuality = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
 
     const enqueued = await ensureQualityScoreJobs(500);
-
-    // Libera órfãos antes
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    await supabaseAdmin
-      .from("quality_score_jobs")
-      .update({ status: "pending", locked_at: null })
-      .eq("status", "running")
-      .lt("locked_at", tenMinutesAgo);
-
-    // Claim atômico via RPC
-    const { data: claimedRaw, error } = await supabaseAdmin.rpc("claim_pending_jobs", {
-      _table: "quality_score_jobs",
-      _batch_size: data.batch,
-    });
-    if (error) throw new Error(error.message);
-    const claimed = (claimedRaw as unknown as string[]) ?? [];
+    const claimed = await claimQualityScoreJobs(data.batch);
 
     let processed = 0;
     let failed = 0;

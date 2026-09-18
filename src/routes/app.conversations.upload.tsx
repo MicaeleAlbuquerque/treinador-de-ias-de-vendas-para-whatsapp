@@ -2,9 +2,10 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, type ChangeEvent, type FormEvent } from "react";
+import JSZip from "jszip";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadWhatsAppExport } from "@/lib/whatsapp.functions";
-import { ChevronLeft, Upload } from "lucide-react";
+import { ChevronLeft, Upload, FileArchive, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/conversations/upload")({
@@ -15,8 +16,10 @@ function UploadPage() {
   const navigate = useNavigate();
   const uploadFn = useServerFn(uploadWhatsAppExport);
   const [sellerId, setSellerId] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
   const [fileText, setFileText] = useState("");
   const [fileName, setFileName] = useState("");
+  const [zipInfo, setZipInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const sellersQ = useQuery({
@@ -35,7 +38,32 @@ function UploadPage() {
     const f = e.target.files?.[0];
     if (!f) return;
     setFileName(f.name);
-    setFileText(await f.text());
+    setZipInfo(null);
+
+    if (f.name.toLowerCase().endsWith(".zip")) {
+      try {
+        const zip = await JSZip.loadAsync(f);
+        const txtFiles = Object.keys(zip.files).filter(
+          (name) => name.toLowerCase().endsWith(".txt") && !name.startsWith("__MACOSX") && !zip.files[name]!.dir,
+        );
+        if (txtFiles.length === 0) {
+          toast.error("Nenhum arquivo .txt de conversa encontrado dentro do .zip.");
+          setFileText("");
+          return;
+        }
+        const targetFile =
+          txtFiles.find((name) => name.toLowerCase().includes("_chat.txt")) || txtFiles[0]!;
+        const text = await zip.files[targetFile]!.async("string");
+        setFileText(text);
+        setZipInfo(`Arquivo extraído: ${targetFile}`);
+        toast.success(`Conversa extraída do .zip (${targetFile})`);
+      } catch (err) {
+        toast.error(`Erro ao abrir .zip: ${(err as Error).message}`);
+        setFileText("");
+      }
+    } else {
+      setFileText(await f.text());
+    }
   }
 
   async function onSubmit(e: FormEvent) {
@@ -46,7 +74,14 @@ function UploadPage() {
     }
     setBusy(true);
     try {
-      const r = await uploadFn({ data: { sellerId, fileText, fileName } });
+      const r = await uploadFn({
+        data: {
+          sellerId,
+          fileText,
+          fileName,
+          leadPhone: leadPhone.trim() || undefined,
+        },
+      });
       toast.success(`Importadas ${r.messageCount} mensagens (${r.audioCount} áudios).`);
       navigate({ to: "/app/conversations/$id", params: { id: r.conversationId } });
     } catch (e) {
@@ -65,7 +100,7 @@ function UploadPage() {
         <span className="via-label">Conversas</span>
         <h1 className="mt-1 text-3xl">Subir export manual</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Envie um arquivo <code>.txt</code> exportado do WhatsApp. As mensagens serão anonimizadas automaticamente.
+          Envie um arquivo <code>.txt</code> ou <code>.zip</code> exportado do WhatsApp (com ou sem mídia). As mensagens serão lidas e anonimizadas automaticamente.
         </p>
       </header>
 
@@ -91,11 +126,34 @@ function UploadPage() {
         </div>
 
         <div>
-          <label className="via-label">Arquivo .txt</label>
+          <label className="via-label">Telefone do lead (opcional)</label>
+          <input
+            type="text"
+            placeholder="Ex: 5511999998888 (se omitido, é detectado do histórico)"
+            value={leadPhone}
+            onChange={(e) => setLeadPhone(e.target.value)}
+            className="via-input mt-1"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Opcional. Se o contato estiver salvo por nome no WhatsApp, você pode informar o número aqui.
+          </p>
+        </div>
+
+        <div>
+          <label className="via-label">Arquivo (.txt ou .zip)</label>
           <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary p-8 text-center text-sm text-muted-foreground hover:border-[color:var(--via-blue)]">
-            <Upload size={20} />
-            <span>{fileName ? `📄 ${fileName}` : "Clique para selecionar (ou arraste)"}</span>
-            <input type="file" accept=".txt" onChange={onFile} className="hidden" />
+            {fileName?.toLowerCase().endsWith(".zip") ? (
+              <FileArchive size={28} className="text-amber-600" />
+            ) : fileName ? (
+              <FileText size={28} className="text-[color:var(--via-blue)]" />
+            ) : (
+              <Upload size={28} />
+            )}
+            <span className="font-medium text-foreground">
+              {fileName ? fileName : "Clique para selecionar (ou arraste .txt ou .zip)"}
+            </span>
+            {zipInfo && <span className="text-xs text-muted-foreground">{zipInfo}</span>}
+            <input type="file" accept=".txt,.zip,application/zip,application/x-zip-compressed" onChange={onFile} className="hidden" />
           </label>
         </div>
 

@@ -9,38 +9,38 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AppIndexRouteImport } from './routes/app.index'
-import { Route as AuthSignUpRouteImport } from './routes/auth.sign-up'
-import { Route as AuthSignInRouteImport } from './routes/auth.sign-in'
-import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
-import { Route as AuthForgotPasswordRouteImport } from './routes/auth.forgot-password'
-import { Route as AppTeamRouteImport } from './routes/app.team'
-import { Route as AppSettingsRouteImport } from './routes/app.settings'
-import { Route as AppPromptsRouteImport } from './routes/app.prompts'
-import { Route as AppHelpRouteImport } from './routes/app.help'
-import { Route as AppDnaRouteImport } from './routes/app.dna'
-import { Route as AppConversationsRouteImport } from './routes/app.conversations'
-import { Route as AppCoachRouteImport } from './routes/app.coach'
+import { Route as AppRouteImport } from './routes/app'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AcceptInviteTokenRouteImport } from './routes/accept-invite.$token'
+import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AppCoachRouteImport } from './routes/app.coach'
+import { Route as AppConversationsRouteImport } from './routes/app.conversations'
+import { Route as AppDnaRouteImport } from './routes/app.dna'
+import { Route as AppHelpRouteImport } from './routes/app.help'
+import { Route as AppPromptsRouteImport } from './routes/app.prompts'
+import { Route as AppSettingsRouteImport } from './routes/app.settings'
+import { Route as AppTeamRouteImport } from './routes/app.team'
+import { Route as AuthForgotPasswordRouteImport } from './routes/auth.forgot-password'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
+import { Route as AuthSignInRouteImport } from './routes/auth.sign-in'
+import { Route as AuthSignUpRouteImport } from './routes/auth.sign-up'
+import { Route as ApiPublicAnalyzeJobRouteImport } from './routes/api/public/analyze-job'
+import { Route as ApiPublicCoachEvalJobRouteImport } from './routes/api/public/coach-eval-job'
+import { Route as ApiPublicPipedriveSyncJobRouteImport } from './routes/api/public/pipedrive-sync-job'
+import { Route as ApiPublicQualityScoreJobRouteImport } from './routes/api/public/quality-score-job'
+import { Route as ApiPublicSyncHistoryJobRouteImport } from './routes/api/public/sync-history-job'
+import { Route as ApiPublicTranscribeJobRouteImport } from './routes/api/public/transcribe-job'
+import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
+import { Route as AppConversationsIdRouteImport } from './routes/app.conversations.$id'
+import { Route as AppConversationsUploadRouteImport } from './routes/app.conversations.upload'
 import { Route as AppHelpIndexRouteImport } from './routes/app.help.index'
 import { Route as AppHelpSlugRouteImport } from './routes/app.help.$slug'
-import { Route as AppConversationsUploadRouteImport } from './routes/app.conversations.upload'
-import { Route as AppConversationsIdRouteImport } from './routes/app.conversations.$id'
-import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp-webhook'
-import { Route as ApiPublicTranscribeJobRouteImport } from './routes/api/public/transcribe-job'
-import { Route as ApiPublicSyncHistoryJobRouteImport } from './routes/api/public/sync-history-job'
-import { Route as ApiPublicQualityScoreJobRouteImport } from './routes/api/public/quality-score-job'
-import { Route as ApiPublicPipedriveSyncJobRouteImport } from './routes/api/public/pipedrive-sync-job'
-import { Route as ApiPublicCoachEvalJobRouteImport } from './routes/api/public/coach-eval-job'
-import { Route as ApiPublicAnalyzeJobRouteImport } from './routes/api/public/analyze-job'
 import { Route as ApiPublicPipedriveCallbackRouteImport } from './routes/api/public/pipedrive/callback'
 
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRoute = AppRouteImport.update({
@@ -48,9 +48,14 @@ const AppRoute = AppRouteImport.update({
   path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AcceptInviteTokenRoute = AcceptInviteTokenRouteImport.update({
+  id: '/accept-invite/$token',
+  path: '/accept-invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -58,49 +63,9 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AuthSignUpRoute = AuthSignUpRouteImport.update({
-  id: '/sign-up',
-  path: '/sign-up',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthSignInRoute = AuthSignInRouteImport.update({
-  id: '/sign-in',
-  path: '/sign-in',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AppTeamRoute = AppTeamRouteImport.update({
-  id: '/team',
-  path: '/team',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSettingsRoute = AppSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppPromptsRoute = AppPromptsRouteImport.update({
-  id: '/prompts',
-  path: '/prompts',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppHelpRoute = AppHelpRouteImport.update({
-  id: '/help',
-  path: '/help',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppDnaRoute = AppDnaRouteImport.update({
-  id: '/dna',
-  path: '/dna',
+const AppCoachRoute = AppCoachRouteImport.update({
+  id: '/coach',
+  path: '/coach',
   getParentRoute: () => AppRoute,
 } as any)
 const AppConversationsRoute = AppConversationsRouteImport.update({
@@ -108,15 +73,98 @@ const AppConversationsRoute = AppConversationsRouteImport.update({
   path: '/conversations',
   getParentRoute: () => AppRoute,
 } as any)
-const AppCoachRoute = AppCoachRouteImport.update({
-  id: '/coach',
-  path: '/coach',
+const AppDnaRoute = AppDnaRouteImport.update({
+  id: '/dna',
+  path: '/dna',
   getParentRoute: () => AppRoute,
 } as any)
-const AcceptInviteTokenRoute = AcceptInviteTokenRouteImport.update({
-  id: '/accept-invite/$token',
-  path: '/accept-invite/$token',
+const AppHelpRoute = AppHelpRouteImport.update({
+  id: '/help',
+  path: '/help',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPromptsRoute = AppPromptsRouteImport.update({
+  id: '/prompts',
+  path: '/prompts',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeamRoute = AppTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AppRoute,
+} as any)
+const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSignInRoute = AuthSignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSignUpRoute = AuthSignUpRouteImport.update({
+  id: '/sign-up',
+  path: '/sign-up',
+  getParentRoute: () => AuthRoute,
+} as any)
+const ApiPublicAnalyzeJobRoute = ApiPublicAnalyzeJobRouteImport.update({
+  id: '/api/public/analyze-job',
+  path: '/api/public/analyze-job',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicCoachEvalJobRoute = ApiPublicCoachEvalJobRouteImport.update({
+  id: '/api/public/coach-eval-job',
+  path: '/api/public/coach-eval-job',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicPipedriveSyncJobRoute =
+  ApiPublicPipedriveSyncJobRouteImport.update({
+    id: '/api/public/pipedrive-sync-job',
+    path: '/api/public/pipedrive-sync-job',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicQualityScoreJobRoute =
+  ApiPublicQualityScoreJobRouteImport.update({
+    id: '/api/public/quality-score-job',
+    path: '/api/public/quality-score-job',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicSyncHistoryJobRoute = ApiPublicSyncHistoryJobRouteImport.update({
+  id: '/api/public/sync-history-job',
+  path: '/api/public/sync-history-job',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicTranscribeJobRoute = ApiPublicTranscribeJobRouteImport.update({
+  id: '/api/public/transcribe-job',
+  path: '/api/public/transcribe-job',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicWhatsappWebhookRoute =
+  ApiPublicWhatsappWebhookRouteImport.update({
+    id: '/api/public/whatsapp-webhook',
+    path: '/api/public/whatsapp-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const AppConversationsIdRoute = AppConversationsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppConversationsRoute,
+} as any)
+const AppConversationsUploadRoute = AppConversationsUploadRouteImport.update({
+  id: '/upload',
+  path: '/upload',
+  getParentRoute: () => AppConversationsRoute,
 } as any)
 const AppHelpIndexRoute = AppHelpIndexRouteImport.update({
   id: '/',
@@ -127,54 +175,6 @@ const AppHelpSlugRoute = AppHelpSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => AppHelpRoute,
-} as any)
-const AppConversationsUploadRoute = AppConversationsUploadRouteImport.update({
-  id: '/upload',
-  path: '/upload',
-  getParentRoute: () => AppConversationsRoute,
-} as any)
-const AppConversationsIdRoute = AppConversationsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AppConversationsRoute,
-} as any)
-const ApiPublicWhatsappWebhookRoute =
-  ApiPublicWhatsappWebhookRouteImport.update({
-    id: '/api/public/whatsapp-webhook',
-    path: '/api/public/whatsapp-webhook',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicTranscribeJobRoute = ApiPublicTranscribeJobRouteImport.update({
-  id: '/api/public/transcribe-job',
-  path: '/api/public/transcribe-job',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicSyncHistoryJobRoute = ApiPublicSyncHistoryJobRouteImport.update({
-  id: '/api/public/sync-history-job',
-  path: '/api/public/sync-history-job',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicQualityScoreJobRoute =
-  ApiPublicQualityScoreJobRouteImport.update({
-    id: '/api/public/quality-score-job',
-    path: '/api/public/quality-score-job',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicPipedriveSyncJobRoute =
-  ApiPublicPipedriveSyncJobRouteImport.update({
-    id: '/api/public/pipedrive-sync-job',
-    path: '/api/public/pipedrive-sync-job',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicCoachEvalJobRoute = ApiPublicCoachEvalJobRouteImport.update({
-  id: '/api/public/coach-eval-job',
-  path: '/api/public/coach-eval-job',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicAnalyzeJobRoute = ApiPublicAnalyzeJobRouteImport.update({
-  id: '/api/public/analyze-job',
-  path: '/api/public/analyze-job',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicPipedriveCallbackRoute =
   ApiPublicPipedriveCallbackRouteImport.update({
@@ -380,11 +380,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app': {
@@ -394,11 +394,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/accept-invite/$token': {
+      id: '/accept-invite/$token'
+      path: '/accept-invite/$token'
+      fullPath: '/accept-invite/$token'
+      preLoaderRoute: typeof AcceptInviteTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/': {
@@ -408,67 +415,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/auth/sign-up': {
-      id: '/auth/sign-up'
-      path: '/sign-up'
-      fullPath: '/auth/sign-up'
-      preLoaderRoute: typeof AuthSignUpRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/auth/sign-in': {
-      id: '/auth/sign-in'
-      path: '/sign-in'
-      fullPath: '/auth/sign-in'
-      preLoaderRoute: typeof AuthSignInRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/auth/reset-password': {
-      id: '/auth/reset-password'
-      path: '/reset-password'
-      fullPath: '/auth/reset-password'
-      preLoaderRoute: typeof AuthResetPasswordRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/auth/forgot-password': {
-      id: '/auth/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/auth/forgot-password'
-      preLoaderRoute: typeof AuthForgotPasswordRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/app/team': {
-      id: '/app/team'
-      path: '/team'
-      fullPath: '/app/team'
-      preLoaderRoute: typeof AppTeamRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/settings': {
-      id: '/app/settings'
-      path: '/settings'
-      fullPath: '/app/settings'
-      preLoaderRoute: typeof AppSettingsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/prompts': {
-      id: '/app/prompts'
-      path: '/prompts'
-      fullPath: '/app/prompts'
-      preLoaderRoute: typeof AppPromptsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/help': {
-      id: '/app/help'
-      path: '/help'
-      fullPath: '/app/help'
-      preLoaderRoute: typeof AppHelpRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/dna': {
-      id: '/app/dna'
-      path: '/dna'
-      fullPath: '/app/dna'
-      preLoaderRoute: typeof AppDnaRouteImport
+    '/app/coach': {
+      id: '/app/coach'
+      path: '/coach'
+      fullPath: '/app/coach'
+      preLoaderRoute: typeof AppCoachRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/conversations': {
@@ -478,19 +429,131 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppConversationsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/coach': {
-      id: '/app/coach'
-      path: '/coach'
-      fullPath: '/app/coach'
-      preLoaderRoute: typeof AppCoachRouteImport
+    '/app/dna': {
+      id: '/app/dna'
+      path: '/dna'
+      fullPath: '/app/dna'
+      preLoaderRoute: typeof AppDnaRouteImport
       parentRoute: typeof AppRoute
     }
-    '/accept-invite/$token': {
-      id: '/accept-invite/$token'
-      path: '/accept-invite/$token'
-      fullPath: '/accept-invite/$token'
-      preLoaderRoute: typeof AcceptInviteTokenRouteImport
+    '/app/help': {
+      id: '/app/help'
+      path: '/help'
+      fullPath: '/app/help'
+      preLoaderRoute: typeof AppHelpRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/prompts': {
+      id: '/app/prompts'
+      path: '/prompts'
+      fullPath: '/app/prompts'
+      preLoaderRoute: typeof AppPromptsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/settings': {
+      id: '/app/settings'
+      path: '/settings'
+      fullPath: '/app/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/team': {
+      id: '/app/team'
+      path: '/team'
+      fullPath: '/app/team'
+      preLoaderRoute: typeof AppTeamRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/auth/forgot-password': {
+      id: '/auth/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/auth/forgot-password'
+      preLoaderRoute: typeof AuthForgotPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/auth/reset-password': {
+      id: '/auth/reset-password'
+      path: '/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/auth/sign-in': {
+      id: '/auth/sign-in'
+      path: '/sign-in'
+      fullPath: '/auth/sign-in'
+      preLoaderRoute: typeof AuthSignInRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/auth/sign-up': {
+      id: '/auth/sign-up'
+      path: '/sign-up'
+      fullPath: '/auth/sign-up'
+      preLoaderRoute: typeof AuthSignUpRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/api/public/analyze-job': {
+      id: '/api/public/analyze-job'
+      path: '/api/public/analyze-job'
+      fullPath: '/api/public/analyze-job'
+      preLoaderRoute: typeof ApiPublicAnalyzeJobRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/public/coach-eval-job': {
+      id: '/api/public/coach-eval-job'
+      path: '/api/public/coach-eval-job'
+      fullPath: '/api/public/coach-eval-job'
+      preLoaderRoute: typeof ApiPublicCoachEvalJobRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/pipedrive-sync-job': {
+      id: '/api/public/pipedrive-sync-job'
+      path: '/api/public/pipedrive-sync-job'
+      fullPath: '/api/public/pipedrive-sync-job'
+      preLoaderRoute: typeof ApiPublicPipedriveSyncJobRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/quality-score-job': {
+      id: '/api/public/quality-score-job'
+      path: '/api/public/quality-score-job'
+      fullPath: '/api/public/quality-score-job'
+      preLoaderRoute: typeof ApiPublicQualityScoreJobRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/sync-history-job': {
+      id: '/api/public/sync-history-job'
+      path: '/api/public/sync-history-job'
+      fullPath: '/api/public/sync-history-job'
+      preLoaderRoute: typeof ApiPublicSyncHistoryJobRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/transcribe-job': {
+      id: '/api/public/transcribe-job'
+      path: '/api/public/transcribe-job'
+      fullPath: '/api/public/transcribe-job'
+      preLoaderRoute: typeof ApiPublicTranscribeJobRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/whatsapp-webhook': {
+      id: '/api/public/whatsapp-webhook'
+      path: '/api/public/whatsapp-webhook'
+      fullPath: '/api/public/whatsapp-webhook'
+      preLoaderRoute: typeof ApiPublicWhatsappWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app/conversations/$id': {
+      id: '/app/conversations/$id'
+      path: '/$id'
+      fullPath: '/app/conversations/$id'
+      preLoaderRoute: typeof AppConversationsIdRouteImport
+      parentRoute: typeof AppConversationsRoute
+    }
+    '/app/conversations/upload': {
+      id: '/app/conversations/upload'
+      path: '/upload'
+      fullPath: '/app/conversations/upload'
+      preLoaderRoute: typeof AppConversationsUploadRouteImport
+      parentRoute: typeof AppConversationsRoute
     }
     '/app/help/': {
       id: '/app/help/'
@@ -505,69 +568,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/help/$slug'
       preLoaderRoute: typeof AppHelpSlugRouteImport
       parentRoute: typeof AppHelpRoute
-    }
-    '/app/conversations/upload': {
-      id: '/app/conversations/upload'
-      path: '/upload'
-      fullPath: '/app/conversations/upload'
-      preLoaderRoute: typeof AppConversationsUploadRouteImport
-      parentRoute: typeof AppConversationsRoute
-    }
-    '/app/conversations/$id': {
-      id: '/app/conversations/$id'
-      path: '/$id'
-      fullPath: '/app/conversations/$id'
-      preLoaderRoute: typeof AppConversationsIdRouteImport
-      parentRoute: typeof AppConversationsRoute
-    }
-    '/api/public/whatsapp-webhook': {
-      id: '/api/public/whatsapp-webhook'
-      path: '/api/public/whatsapp-webhook'
-      fullPath: '/api/public/whatsapp-webhook'
-      preLoaderRoute: typeof ApiPublicWhatsappWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/transcribe-job': {
-      id: '/api/public/transcribe-job'
-      path: '/api/public/transcribe-job'
-      fullPath: '/api/public/transcribe-job'
-      preLoaderRoute: typeof ApiPublicTranscribeJobRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/sync-history-job': {
-      id: '/api/public/sync-history-job'
-      path: '/api/public/sync-history-job'
-      fullPath: '/api/public/sync-history-job'
-      preLoaderRoute: typeof ApiPublicSyncHistoryJobRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/quality-score-job': {
-      id: '/api/public/quality-score-job'
-      path: '/api/public/quality-score-job'
-      fullPath: '/api/public/quality-score-job'
-      preLoaderRoute: typeof ApiPublicQualityScoreJobRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/pipedrive-sync-job': {
-      id: '/api/public/pipedrive-sync-job'
-      path: '/api/public/pipedrive-sync-job'
-      fullPath: '/api/public/pipedrive-sync-job'
-      preLoaderRoute: typeof ApiPublicPipedriveSyncJobRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/coach-eval-job': {
-      id: '/api/public/coach-eval-job'
-      path: '/api/public/coach-eval-job'
-      fullPath: '/api/public/coach-eval-job'
-      preLoaderRoute: typeof ApiPublicCoachEvalJobRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/analyze-job': {
-      id: '/api/public/analyze-job'
-      path: '/api/public/analyze-job'
-      fullPath: '/api/public/analyze-job'
-      preLoaderRoute: typeof ApiPublicAnalyzeJobRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/public/pipedrive/callback': {
       id: '/api/public/pipedrive/callback'

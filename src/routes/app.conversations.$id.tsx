@@ -13,10 +13,10 @@ export const Route = createFileRoute("/app/conversations/$id")({
 });
 
 const OUTCOME_BADGE: Record<string, string> = {
-  won: "bg-green-100 text-green-800 border-green-200",
-  lost: "bg-red-100 text-red-700 border-red-200",
-  in_progress: "bg-amber-100 text-amber-800 border-amber-200",
-  unknown: "bg-zinc-100 text-zinc-600 border-zinc-200",
+  won: "bg-green-100 text-green-800 border-green-200 dark:bg-green-950/50 dark:text-green-300 dark:border-green-800",
+  lost: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800",
+  in_progress: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
+  unknown: "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700",
 };
 
 const OUTCOME_LABEL: Record<string, string> = {
@@ -178,7 +178,7 @@ function ConversationDetail() {
         )}
       </div>
 
-      <div className="via-card space-y-3 bg-[#ECE5DD]">
+      <div className="via-card space-y-3 bg-[#ECE5DD] dark:bg-[#0b141a]">
         {msgsQ.isLoading ? (
           <div className="text-sm text-muted-foreground">Carregando mensagens…</div>
         ) : (msgsQ.data ?? []).length === 0 ? (
@@ -205,7 +205,9 @@ function Bubble({ msg, onReclassify }: { msg: any; onReclassify: (id: string, st
     <div className={`flex ${isSeller ? "justify-end" : "justify-start"}`}>
       <div
         className={`max-w-[80%] rounded-lg px-3 py-2 shadow-sm ${
-          isSeller ? "bg-[#DCF8C6] text-zinc-900" : "bg-white text-zinc-900"
+          isSeller
+            ? "bg-[#DCF8C6] text-zinc-900 dark:bg-[#005c4b] dark:text-[#e9edef]"
+            : "bg-white text-zinc-900 dark:bg-[#202c33] dark:text-[#e9edef]"
         }`}
       >
         {msg.media_type === "audio" ? (
@@ -216,7 +218,7 @@ function Bubble({ msg, onReclassify }: { msg: any; onReclassify: (id: string, st
               <div className="text-xs text-muted-foreground italic">[áudio]</div>
             )}
             {msg.audio_transcript ? (
-              <div className="rounded bg-black/5 p-2 text-xs italic">{msg.audio_transcript}</div>
+              <div className="rounded bg-black/5 dark:bg-white/10 dark:text-zinc-200 p-2 text-xs italic">{msg.audio_transcript}</div>
             ) : (
               <div className="text-xs text-muted-foreground italic">Transcrevendo…</div>
             )}
@@ -224,7 +226,7 @@ function Bubble({ msg, onReclassify }: { msg: any; onReclassify: (id: string, st
         ) : (
           <div className="whitespace-pre-wrap text-sm">{msg.text || <span className="italic text-muted-foreground">[sem texto]</span>}</div>
         )}
-        <div className="mt-1 text-right text-[10px] text-zinc-500">
+        <div className="mt-1 text-right text-[10px] text-zinc-500 dark:text-zinc-400">
           {new Date(msg.ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
         </div>
         {isSeller && (
@@ -232,7 +234,7 @@ function Bubble({ msg, onReclassify }: { msg: any; onReclassify: (id: string, st
             <select
               value={msg.stage ?? ""}
               onChange={(e) => e.target.value && onReclassify(msg.id, e.target.value)}
-              className="rounded border border-zinc-300 bg-white/70 px-1 text-[10px] text-zinc-700"
+              className="rounded border border-zinc-300 bg-white/70 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 px-1 text-[10px] text-zinc-700"
               title={msg.stage_manual ? "Manual" : msg.stage_confidence ? `Confiança ${Math.round(msg.stage_confidence * 100)}%` : "Sem classificação"}
             >
               <option value="">— etapa —</option>
