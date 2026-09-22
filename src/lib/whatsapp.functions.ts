@@ -405,6 +405,27 @@ export const deleteConversation = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Apaga múltiplas conversas selecionadas por ID
+export const deleteMultipleConversations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { conversationIds: string[] }) =>
+    z.object({ conversationIds: z.array(z.string().uuid()).min(1).max(5000) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { count: before } = await supabaseAdmin
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .in("id", data.conversationIds);
+    const { error } = await supabaseAdmin
+      .from("conversations")
+      .delete()
+      .in("id", data.conversationIds);
+    if (error) throw new Error(error.message);
+    return { deleted: before ?? data.conversationIds.length };
+  });
+
+
 // Apaga TODAS as conversas de demonstração (preserva Evolution + upload).
 export const wipeDemoConversations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1199,6 +1220,134 @@ export const uploadWhatsAppExport = createServerFn({ method: "POST" })
     return { conversationId: conv.id, messageCount: messages.length, audioCount };
   });
 
+export const uploadMultipleWhatsAppExports = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(
+    (data: {
+      sellerId: string;
+      items: Array<{
+        fileName: string;
+        fileText: string;
+        leadPhone?: string;
+      }>;
+    }) =>
+      z
+        .object({
+          sellerId: z.string().uuid(),
+          items: z
+            .array(
+              z.object({
+                fileName: z.string().max(255),
+                fileText: z.string().min(1).max(10_000_000),
+                leadPhone: z.string().max(30).optional(),
+              }),
+            )
+            .min(1)
+            .max(100),
+        })
+        .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    void context;
+    const { data: seller } = await supabaseAdmin
+      .from("sellers")
+      .select("id, name, phone")
+      .eq("id", data.sellerId)
+      .single();
+    if (!seller) throw new Error("Vendedor não encontrado");
+
+    const { data: sellers } = await supabaseAdmin.from("sellers").select("name, phone");
+    const whitelist = buildSellerWhitelist(sellers ?? []);
+    const sellerNameLower = seller.name.toLowerCase().trim();
+
+    const results = [];
+
+    for (const item of data.items) {
+      const parsed = parseWhatsAppExport(item.fileText);
+      if (parsed.length === 0) continue;
+
+      const leadName =
+        parsed.find((p) => p.authorName.toLowerCase().trim() !== sellerNameLower && !p.isSystem)
+          ?.authorName ?? "Lead";
+
+      const digitsOnly = leadName.replace(/\D/g, "");
+      let leadPhone: string;
+      if (item.leadPhone && isValidPhone(item.leadPhone.trim())) {
+        leadPhone = item.leadPhone.trim();
+      } else if (digitsOnly.length >= 8 && digitsOnly.length <= 15) {
+        leadPhone = leadName.trim().startsWith("+") ? `+${digitsOnly}` : digitsOnly;
+      } else {
+        leadPhone = `+5500${Date.now().toString().slice(-8)}${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+
+      const leadNameAnon = digitsOnly.length >= 8 ? `Lead ${maskPhone(leadName)}` : `Lead ${leadName}`;
+
+      const firstTs = parsed[0]!.ts;
+      const lastTs = parsed[parsed.length - 1]!.ts;
+
+      const { data: conv, error: convErr } = await supabaseAdmin
+        .from("conversations")
+        .insert({
+          seller_id: seller.id,
+          lead_phone: leadPhone,
+          lead_name_anon: leadNameAnon,
+          source: "upload",
+          first_msg_at: firstTs,
+          last_msg_at: lastTs,
+          message_count: parsed.length,
+        })
+        .select("id")
+        .single();
+      if (convErr || !conv) throw new Error(convErr?.message ?? "Falha ao criar conversa");
+
+      const messages = parsed.map((p) => {
+        const isSeller = p.authorName.toLowerCase().trim() === sellerNameLower;
+        const role: "seller" | "lead" | "system" = p.isSystem ? "system" : isSeller ? "seller" : "lead";
+        const anon = anonymizeText(p.text, whitelist);
+        const isAudio = /<.*udio.*omitido>/i.test(p.text) || /audio omitted/i.test(p.text);
+        return {
+          conversation_id: conv.id,
+          sender_role: role,
+          ts: p.ts,
+          media_type: p.isSystem ? "system" : isAudio ? "audio" : "text",
+          text: anon.anonymized,
+          audio_url: null as string | null,
+          audio_transcript: null as string | null,
+          raw: { authorName: p.authorName } as any,
+        };
+      });
+      const audioCount = messages.filter((m) => m.media_type === "audio").length;
+
+      const chunk = 500;
+      for (let i = 0; i < messages.length; i += chunk) {
+        const slice = messages.slice(i, i + chunk);
+        const { error } = await supabaseAdmin.from("messages").insert(slice);
+        if (error) throw new Error(error.message);
+      }
+
+      results.push({
+        conversationId: conv.id,
+        fileName: item.fileName,
+        leadPhone,
+        leadNameAnon,
+        sellerName: seller.name,
+        messageCount: messages.length,
+        audioCount,
+        firstMsgAt: firstTs,
+        lastMsgAt: lastTs,
+        messages: messages.map((m) => ({
+          sender_role: m.sender_role,
+          ts: m.ts,
+          text: m.text,
+          media_type: m.media_type,
+        })),
+      });
+    }
+
+    return { total: results.length, items: results };
+  });
+
+
 // ============ Demo seed ============
 
 export const ensureDemoSeed = createServerFn({ method: "POST" })
@@ -1290,3 +1439,22 @@ export const ensureDemoSeed = createServerFn({ method: "POST" })
       .eq("id", true);
     return { seeded: true };
   });
+
+export const transcribeAudioMessageNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { messageId: string }) =>
+    z.object({ messageId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { transcribeSingleAudioMessage } = await import("@/lib/transcribe.server");
+    const result = await transcribeSingleAudioMessage(data.messageId);
+    return { ok: !!result, transcript: result };
+  });
+
+export const processPendingTranscriptionsNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { processAllPendingTranscriptions } = await import("@/lib/transcribe.server");
+    return await processAllPendingTranscriptions(30);
+  });
+

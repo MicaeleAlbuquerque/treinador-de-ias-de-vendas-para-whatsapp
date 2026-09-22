@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { anonymizeText, buildSellerWhitelist, maskPhone } from "@/lib/anonymize.server";
 import { coachEvaluateMessage } from "@/lib/coach.server";
+import { transcribeSingleAudioMessage } from "@/lib/transcribe.server";
 
 function unauthorized() {
   return new Response(JSON.stringify({ error: "unauthorized" }), {
@@ -153,7 +154,13 @@ async function handleMessagesUpsert(instanceId: string, instanceSellerId: string
       console.error("[webhook] msg insert failed", mErr.message);
       continue;
     }
-    if (fromMe && inserted?.id) {
+
+    if (mediaType === "audio" && inserted?.id && audioBase64) {
+      // Dispara transcrição de áudio em background
+      transcribeSingleAudioMessage(inserted.id).catch((e) =>
+        console.error("[webhook transcribe async]", e.message),
+      );
+    } else if (fromMe && inserted?.id) {
       coachEvaluateMessage(inserted.id).catch((e) => console.error("[coach]", e.message));
     }
     // Update conversation aggregates

@@ -191,3 +191,109 @@ export const saveAnalysisSettings = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const getDnaSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    void context;
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("current_dna_snapshot_id, last_dna_snapshot_at, dna_min_won, dna_min_lost, dna_min_sellers, dna_individual_mode, dna_use_quality_score, dna_quality_min_good, dna_quality_max_bad")
+      .eq("id", true)
+      .maybeSingle();
+    return data ?? null;
+  });
+
+export const getDnaSnapshotDetails = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data?: { snapshotId?: string | null }) =>
+    z.object({ snapshotId: z.string().uuid().nullable().optional() }).optional().parse(data ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    void context;
+    let targetSnapId = data?.snapshotId;
+
+    if (!targetSnapId) {
+      const { data: settings } = await supabaseAdmin
+        .from("app_settings")
+        .select("current_dna_snapshot_id")
+        .eq("id", true)
+        .maybeSingle();
+      targetSnapId = settings?.current_dna_snapshot_id ?? null;
+    }
+
+    if (!targetSnapId) {
+      return {
+        snapshot: null,
+        scores: [],
+        objections: [],
+        antipatterns: [],
+      };
+    }
+
+    const { data: snap } = await supabaseAdmin
+      .from("dna_snapshots")
+      .select("id, created_at, total_conversations_analyzed, top_performer_seller_id")
+      .eq("id", targetSnapId)
+      .maybeSingle();
+
+    if (!snap) {
+      return {
+        snapshot: null,
+        scores: [],
+        objections: [],
+        antipatterns: [],
+      };
+    }
+
+    const { data: rawScores } = await supabaseAdmin
+      .from("seller_dna_scores")
+      .select("*")
+      .eq("snapshot_id", targetSnapId)
+      .order("score", { ascending: false });
+
+    const rows = rawScores ?? [];
+    const sellerIds = [...new Set(rows.map((r: any) => r.seller_id).filter(Boolean))];
+    const nameById = new Map<string, string>();
+    if (sellerIds.length > 0) {
+      const { data: ss } = await supabaseAdmin.from("sellers").select("id, name").in("id", sellerIds);
+      for (const s of ss ?? []) nameById.set(s.id, s.name);
+    }
+
+    const scores = rows.map((r: any) => ({
+      ...r,
+      seller_name: nameById.get(r.seller_id) ?? "—",
+    }));
+
+    const { data: objections } = await supabaseAdmin
+      .from("dna_objections")
+      .select("*")
+      .eq("snapshot_id", targetSnapId)
+      .order("win_rate", { ascending: false });
+
+    const { data: antipatterns } = await supabaseAdmin
+      .from("dna_antipatterns")
+      .select("*")
+      .eq("snapshot_id", targetSnapId)
+      .order("lift", { ascending: false })
+      .limit(50);
+
+    return {
+      snapshot: snap,
+      scores,
+      objections: objections ?? [],
+      antipatterns: antipatterns ?? [],
+    };
+  });
+
+export const listDnaSnapshots = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    void context;
+    const { data } = await supabaseAdmin
+      .from("dna_snapshots")
+      .select("id, created_at, total_conversations_analyzed")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    return data ?? [];
+  });

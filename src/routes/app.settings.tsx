@@ -24,7 +24,10 @@ import {
   KeyRound,
   Tag,
   BookOpen,
+  Lock,
+  ShieldAlert,
 } from "lucide-react";
+import { useMyRole } from "@/lib/user-role";
 import QRCode from "qrcode";
 import {
   Dialog,
@@ -73,15 +76,23 @@ export const Route = createFileRoute("/app/settings")({ component: SettingsPage 
 type Tab = "account" | "company" | "whatsapp" | "sellers" | "hours" | "ai" | "integracoes";
 
 function SettingsPage() {
+  const { role, loading: roleLoading } = useMyRole();
+  const isAdmin = role === "admin";
   const [tab, setTab] = useState<Tab>("whatsapp");
-  // Single-tenant interno: todas as abas sempre visíveis para qualquer usuário autenticado.
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "whatsapp", label: "WhatsApp" },
-    { id: "sellers", label: "Vendedores" },
-    { id: "hours", label: "Horário comercial" },
-    { id: "ai", label: "Conta da IA" },
-    { id: "integracoes", label: "Integrações" },
-    { id: "company", label: "Empresa" },
+
+  useEffect(() => {
+    if (!roleLoading && !isAdmin && tab !== "account") {
+      setTab("account");
+    }
+  }, [roleLoading, isAdmin, tab]);
+
+  const allTabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
+    { id: "whatsapp", label: "WhatsApp", adminOnly: true },
+    { id: "sellers", label: "Vendedores", adminOnly: true },
+    { id: "hours", label: "Horário comercial", adminOnly: true },
+    { id: "ai", label: "Conta da IA", adminOnly: true },
+    { id: "integracoes", label: "Integrações", adminOnly: true },
+    { id: "company", label: "Empresa", adminOnly: true },
     { id: "account", label: "Conta" },
   ];
 
@@ -92,20 +103,57 @@ function SettingsPage() {
         <h1 className="mt-1 text-3xl">Preferências</h1>
       </header>
       <div className="flex flex-wrap gap-2 border-b border-border">
-        {tabs.map((t) => (
-          <button key={t.id} type="button" onClick={() => setTab(t.id)}
-            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-b-2 ${tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`}>
-            {t.label}
-          </button>
-        ))}
+        {allTabs.map((t) => {
+          const isLocked = t.adminOnly && !isAdmin;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-b-2 flex items-center gap-1.5 transition-colors ${
+                tab === t.id
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              } ${isLocked ? "opacity-75" : ""}`}
+            >
+              <span>{t.label}</span>
+              {isLocked && (
+                <span title="Acesso restrito a administradores">
+                  <Lock size={12} className="text-amber-500" />
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
-      {tab === "account" && <AccountSettings />}
-      {tab === "company" && <CompanySettings />}
-      {tab === "whatsapp" && <WhatsAppSettings />}
-      {tab === "sellers" && <SellersSettings />}
-      {tab === "hours" && <BusinessHoursSettings />}
-      {tab === "ai" && <AIAccountSettings />}
-      {tab === "integracoes" && <IntegrationsSettings />}
+
+      {!isAdmin && tab !== "account" ? (
+        <div className="via-card py-10 text-center space-y-3">
+          <ShieldAlert size={40} className="text-amber-500 mx-auto" />
+          <h2 className="text-lg font-semibold">Acesso Restrito a Administradores</h2>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
+            As configurações de {allTabs.find((t) => t.id === tab)?.label.toLowerCase()} só podem ser
+            visualizadas e alteradas por administradores da instância.
+          </p>
+          <button
+            type="button"
+            onClick={() => setTab("account")}
+            className="via-btn via-btn-secondary via-btn-sm"
+          >
+            Ir para Configurações da Conta
+          </button>
+        </div>
+      ) : (
+        <>
+          {tab === "account" && <AccountSettings />}
+          {tab === "company" && <CompanySettings />}
+          {tab === "whatsapp" && <WhatsAppSettings />}
+          {tab === "sellers" && <SellersSettings />}
+          {tab === "hours" && <BusinessHoursSettings />}
+          {tab === "ai" && <AIAccountSettings />}
+          {tab === "integracoes" && <IntegrationsSettings />}
+        </>
+      )}
     </div>
   );
 }

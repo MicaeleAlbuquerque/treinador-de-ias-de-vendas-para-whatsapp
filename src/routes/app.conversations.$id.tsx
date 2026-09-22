@@ -1,11 +1,11 @@
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { assignSellerToConversation } from "@/lib/whatsapp.functions";
+import { assignSellerToConversation, transcribeAudioMessageNow } from "@/lib/whatsapp.functions";
 import { tagConversation, reclassifyMessage } from "@/lib/analysis.functions";
-import { ChevronLeft, Check, X, Clock, UserCircle, ShieldCheck, RotateCcw } from "lucide-react";
+import { ChevronLeft, Check, X, Clock, UserCircle, ShieldCheck, RotateCcw, Mic } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/conversations/$id")({
@@ -27,13 +27,34 @@ const OUTCOME_LABEL: Record<string, string> = {
 };
 
 function ConversationDetail() {
+  const navigate = useNavigate();
   const { id } = useParams({ from: "/app/conversations/$id" });
   const qc = useQueryClient();
   const assignFn = useServerFn(assignSellerToConversation);
   const tagFn = useServerFn(tagConversation);
   const reclassifyFn = useServerFn(reclassifyMessage);
+  const transcribeAudioFn = useServerFn(transcribeAudioMessageNow);
   const [assigning, setAssigning] = useState(false);
   const [wonValue, setWonValue] = useState<string>("");
+  const [transcribingMsgId, setTranscribingMsgId] = useState<string | null>(null);
+
+  async function handleTranscribeAudio(messageId: string) {
+    setTranscribingMsgId(messageId);
+    try {
+      const res = await transcribeAudioFn({ data: { messageId } });
+      if (res.ok && res.transcript) {
+        toast.success("Áudio transcrito com sucesso!");
+        qc.invalidateQueries({ queryKey: ["messages", id] });
+        qc.invalidateQueries({ queryKey: ["audio-stats"] });
+      } else {
+        toast.error("Não foi possível transcrever este áudio.");
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setTranscribingMsgId(null);
+    }
+  }
 
   const convQ = useQuery({
     queryKey: ["conversation", id],
@@ -114,9 +135,24 @@ function ConversationDetail() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <Link to="/app/conversations" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ChevronLeft size={14} /> Voltar
-      </Link>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => {
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              navigate({ to: "/app/conversations" });
+            }
+          }}
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer"
+        >
+          <ChevronLeft size={14} /> Voltar
+        </button>
+        <Link to="/app/conversations" className="text-xs text-muted-foreground hover:underline">
+          Ver todas as conversas
+        </Link>
+      </div>
 
       <header className="via-card flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -194,7 +230,15 @@ function ConversationDetail() {
         ) : (msgsQ.data ?? []).length === 0 ? (
           <div className="text-sm text-muted-foreground">Sem mensagens.</div>
         ) : (
-          (msgsQ.data ?? []).map((m) => <Bubble key={m.id} msg={m as any} onReclassify={handleReclassify} />)
+          (msgsQ.data ?? []).map((m) => (
+            <Bubble
+              key={m.id}
+              msg={m as any}
+              onReclassify={handleReclassify}
+              onTranscribe={handleTranscribeAudio}
+              transcribingId={transcribingMsgId}
+            />
+          ))
         )}
       </div>
     </div>
@@ -202,7 +246,17 @@ function ConversationDetail() {
 }
 
 const STAGES = ["abertura","qualificacao","valor","objecao","fechamento"] as const;
-function Bubble({ msg, onReclassify }: { msg: any; onReclassify: (id: string, stage: string) => void }) {
+function Bubble({
+  msg,
+  onReclassify,
+  onTranscribe,
+  transcribingId,
+}: {
+  msg: any;
+  onReclassify: (id: string, stage: string) => void;
+  onTranscribe: (id: string) => void;
+  transcribingId?: string | null;
+}) {
   if (msg.sender_role === "system") {
     return (
       <div className="mx-auto max-w-md text-center text-[11px] text-muted-foreground italic">
@@ -228,9 +282,24 @@ function Bubble({ msg, onReclassify }: { msg: any; onReclassify: (id: string, st
               <div className="text-xs text-muted-foreground italic">[áudio]</div>
             )}
             {msg.audio_transcript ? (
-              <div className="rounded bg-black/5 dark:bg-white/10 dark:text-zinc-200 p-2 text-xs italic">{msg.audio_transcript}</div>
+              <div className="rounded bg-black/5 dark:bg-white/10 dark:text-zinc-200 p-2 text-xs italic">
+                {msg.audio_transcript}
+              </div>
+            ) : msg.audio_url ? (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  disabled={transcribingId === msg.id}
+                  onClick={() => onTranscribe(msg.id)}
+                  className="via-btn via-btn-secondary via-btn-xs text-[11px] inline-flex items-center gap-1.5 font-medium hover:border-primary/50"
+                  title="Transcrever áudio usando inteligência artificial"
+                >
+                  <Mic size={12} className={transcribingId === msg.id ? "animate-pulse text-primary" : "text-primary"} />
+                  {transcribingId === msg.id ? "Transcrevendo com IA…" : "Transcrever áudio"}
+                </button>
+              </div>
             ) : (
-              <div className="text-xs text-muted-foreground italic">Transcrevendo…</div>
+              <div className="text-xs text-muted-foreground italic">[áudio sem mídia disponível]</div>
             )}
           </div>
         ) : (

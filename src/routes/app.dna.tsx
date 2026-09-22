@@ -3,8 +3,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { triggerDnaRecalc } from "@/lib/analysis.functions";
-import { setCurrentSnapshot } from "@/lib/analysis.functions";
+import {
+  triggerDnaRecalc,
+  setCurrentSnapshot,
+  getDnaSettings,
+  getDnaSnapshotDetails,
+  listDnaSnapshots,
+} from "@/lib/analysis.functions";
 import { useMyRole } from "@/lib/user-role";
 import { toast } from "sonner";
 import { Sparkles, Trophy, Brain, BookOpen, Copy, Check, ChevronDown, ChevronRight, Pencil } from "lucide-react";
@@ -21,6 +26,9 @@ function DnaPage() {
   const isAdmin = role === "admin";
   const recalcFn = useServerFn(triggerDnaRecalc);
   const setSnapFn = useServerFn(setCurrentSnapshot);
+  const getDnaSettingsFn = useServerFn(getDnaSettings);
+  const getDnaSnapshotDetailsFn = useServerFn(getDnaSnapshotDetails);
+  const listDnaSnapshotsFn = useServerFn(listDnaSnapshots);
   const scoreQualityFn = useServerFn(scoreAllPendingQuality);
   const getQualityStatsFn = useServerFn(getQualityScoreStats);
   const saveQualityCfgFn = useServerFn(saveDnaQualityConfig);
@@ -59,12 +67,7 @@ function DnaPage() {
 
   const settingsQ = useQuery({
     queryKey: ["dna-settings"],
-    queryFn: async () => {
-      const { data } = await supabase.from("app_settings")
-        .select("current_dna_snapshot_id, last_dna_snapshot_at, dna_min_won, dna_min_lost, dna_min_sellers, dna_individual_mode, dna_use_quality_score, dna_quality_min_good, dna_quality_max_bad")
-        .eq("id", true).maybeSingle();
-      return data;
-    },
+    queryFn: () => getDnaSettingsFn({}),
   });
   const qualityStatsQ = useQuery({
     queryKey: ["quality-stats"],
@@ -88,11 +91,11 @@ function DnaPage() {
     queryFn: () => getPlaybookSnapshotFn({ data: { snapshotId: viewingSnapshotId! } }),
     enabled: !!viewingSnapshotId,
   });
-  const activeSnapshotId = (playbookQ.data as any)?.id ?? null;
-  const displayedPlaybook = viewingSnapshotId ? viewedPlaybookQ.data : playbookQ.data;
+  const activeSnapshotId = playbookQ.data?.id ?? null;
+  const displayedPlaybook = viewingSnapshotId ? viewedPlaybookQ.data ?? null : playbookQ.data ?? null;
   const displayedLoading = viewingSnapshotId ? viewedPlaybookQ.isLoading : playbookQ.isLoading;
 
-  async function savePlaybookEditHandler(systemPrompt: string) {
+  async function savePlaybookEditHandler(text: string) {
     const base = viewingSnapshotId ?? activeSnapshotId;
     if (!base) {
       toast.error("Nenhuma versão base pra editar.");
@@ -100,8 +103,8 @@ function DnaPage() {
     }
     setSavingPlaybookEdit(true);
     try {
-      await savePlaybookEditFn({ data: { systemPrompt, baseSnapshotId: base } });
-      toast.success("Edição salva como nova versão.");
+      await savePlaybookEditFn({ data: { systemPrompt: text, baseSnapshotId: base } });
+      toast.success("Playbook editado e salvo!");
       setViewingSnapshotId(null);
       qc.invalidateQueries({ queryKey: ["playbook-current"] });
       qc.invalidateQueries({ queryKey: ["playbook-history"] });
@@ -116,7 +119,7 @@ function DnaPage() {
     setRestoringVersionId(snapshotId);
     try {
       await setActivePlaybookFn({ data: { snapshotId } });
-      toast.success("Versão restaurada como playbook ativo.");
+      toast.success("Versão restaurada como ativa!");
       setViewingSnapshotId(null);
       qc.invalidateQueries({ queryKey: ["playbook-current"] });
       qc.invalidateQueries({ queryKey: ["playbook-history"] });
@@ -168,57 +171,20 @@ function DnaPage() {
   }
   const snapId = settingsQ.data?.current_dna_snapshot_id ?? null;
 
-  const snapQ = useQuery({
-    queryKey: ["dna-snap", snapId],
+  const dnaDetailsQ = useQuery({
+    queryKey: ["dna-snapshot-details", snapId],
     enabled: !!snapId,
-    queryFn: async () => {
-      const { data } = await supabase.from("dna_snapshots")
-        .select("id, created_at, total_conversations_analyzed, top_performer_seller_id")
-        .eq("id", snapId!).single();
-      return data;
-    },
+    queryFn: () => getDnaSnapshotDetailsFn({ data: { snapshotId: snapId } }),
   });
-  const scoresQ = useQuery({
-    queryKey: ["dna-scores", snapId],
-    enabled: !!snapId,
-    queryFn: async () => {
-      const { data } = await supabase.from("seller_dna_scores")
-        .select("*").eq("snapshot_id", snapId!).order("score", { ascending: false });
-      const rows = data ?? [];
-      const sellerIds = [...new Set(rows.map((r: any) => r.seller_id).filter(Boolean))];
-      const nameById = new Map<string, string>();
-      if (sellerIds.length > 0) {
-        const { data: ss } = await supabase.from("sellers").select("id, name").in("id", sellerIds);
-        for (const s of ss ?? []) nameById.set(s.id, s.name);
-      }
-      return rows.map((r: any) => ({ ...r, seller_name: nameById.get(r.seller_id) ?? "—" }));
-    },
-  });
-  const objQ = useQuery({
-    queryKey: ["dna-obj", snapId],
-    enabled: !!snapId,
-    queryFn: async () => {
-      const { data } = await supabase.from("dna_objections")
-        .select("*").eq("snapshot_id", snapId!).order("win_rate", { ascending: false });
-      return data ?? [];
-    },
-  });
-  const antiQ = useQuery({
-    queryKey: ["dna-anti", snapId],
-    enabled: !!snapId,
-    queryFn: async () => {
-      const { data } = await supabase.from("dna_antipatterns")
-        .select("*").eq("snapshot_id", snapId!).order("lift", { ascending: false }).limit(30);
-      return data ?? [];
-    },
-  });
+
+  const snapQ = { data: dnaDetailsQ.data?.snapshot };
+  const scoresQ = { data: dnaDetailsQ.data?.scores ?? [] };
+  const objQ = { data: dnaDetailsQ.data?.objections ?? [] };
+  const antiQ = { data: dnaDetailsQ.data?.antipatterns ?? [] };
+
   const histQ = useQuery({
-    queryKey: ["dna-hist"],
-    queryFn: async () => {
-      const { data } = await supabase.from("dna_snapshots")
-        .select("id, created_at, total_conversations_analyzed").order("created_at", { ascending: false }).limit(20);
-      return data ?? [];
-    },
+    queryKey: ["dna-snapshots-list"],
+    queryFn: () => listDnaSnapshotsFn({}),
   });
 
   async function recalc() {
@@ -228,6 +194,8 @@ function DnaPage() {
       if (r?.ok) {
         toast.success(`DNA recalculado (${r.totalAnalyzed} conversas)`);
         qc.invalidateQueries({ queryKey: ["dna-settings"] });
+        qc.invalidateQueries({ queryKey: ["dna-snapshot-details"] });
+        qc.invalidateQueries({ queryKey: ["dna-snapshots-list"] });
       } else {
         const need = r?.need ?? { won: 0, lost: 0, sellers: 0 };
         const parts: string[] = [];
@@ -400,14 +368,20 @@ function DnaPage() {
             <tbody>
               {(scoresQ.data ?? []).map((s: any) => {
                 const dist = (s.stage_distribution as Record<string,number>) ?? {};
-                const total = Object.values(dist).reduce((a, b) => a + (b as number), 0) || 1;
+                const total = Object.values(dist).reduce((a, b) => a + (b as number), 0);
                 return (
                   <tr key={s.id} className="border-b border-border last:border-0">
-                    <td className="px-3 py-2">{s.seller_name}</td>
-                    {["abertura","qualificacao","valor","objecao","fechamento"].map((st) => {
-                      const pct = Math.round(((dist[st] ?? 0) / total) * 100);
-                      return <td key={st} className="px-3 py-2"><div className="rounded bg-blue-100 px-2 py-1 text-xs" style={{ opacity: 0.3 + pct/100*0.7 }}>{pct}%</div></td>;
-                    })}
+                    <td className="px-3 py-2 font-medium">{s.seller_name}</td>
+                    {total === 0 ? (
+                      <td colSpan={5} className="px-3 py-2 text-xs text-muted-foreground italic">
+                        Etapas ainda não classificadas individualmente no histórico
+                      </td>
+                    ) : (
+                      ["abertura","qualificacao","valor","objecao","fechamento"].map((st) => {
+                        const pct = Math.round(((dist[st] ?? 0) / total) * 100);
+                        return <td key={st} className="px-3 py-2"><div className="rounded bg-blue-100 dark:bg-blue-900/30 px-2 py-1 text-xs" style={{ opacity: 0.3 + pct/100*0.7 }}>{pct}%</div></td>;
+                      })
+                    )}
                   </tr>
                 );
               })}
@@ -465,8 +439,13 @@ function DnaPage() {
                   <td className="px-3 py-2">
                     {isAdmin && s.id !== snapId && (
                       <button className="via-btn via-btn-secondary text-xs" onClick={async () => {
-                        try { await setSnapFn({ data: { snapshotId: s.id } }); toast.success("Snapshot ativado"); qc.invalidateQueries({ queryKey: ["dna-settings"] }); }
-                        catch (e) { toast.error((e as Error).message); }
+                        try {
+                          await setSnapFn({ data: { snapshotId: s.id } });
+                          toast.success("Snapshot ativado");
+                          qc.invalidateQueries({ queryKey: ["dna-settings"] });
+                          qc.invalidateQueries({ queryKey: ["dna-snapshot-details"] });
+                          qc.invalidateQueries({ queryKey: ["dna-snapshots-list"] });
+                        } catch (e) { toast.error((e as Error).message); }
                       }}>Rollback</button>
                     )}
                   </td>
