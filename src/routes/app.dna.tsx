@@ -860,7 +860,7 @@ function PlaybookPanel({
                 <textarea
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
-                  className="w-full text-xs font-mono bg-background border border-border rounded p-3 h-96 leading-relaxed"
+                  className="w-full via-code-box text-xs font-mono p-4 h-96 leading-relaxed focus:outline-none focus:ring-2 focus:ring-accent"
                   spellCheck={false}
                 />
                 <div className="flex flex-wrap items-center gap-2">
@@ -878,7 +878,7 @@ function PlaybookPanel({
                 </div>
               </div>
             ) : (
-              <pre className="text-xs whitespace-pre-wrap font-mono bg-background border border-border rounded p-3 max-h-[32rem] overflow-y-auto leading-relaxed">
+              <pre className="via-code-box text-xs whitespace-pre-wrap font-mono p-4 max-h-[32rem] overflow-y-auto leading-relaxed select-text shadow-inner">
                 {playbook.system_prompt}
               </pre>
             )}

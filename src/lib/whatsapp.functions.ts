@@ -795,14 +795,27 @@ export async function processSyncHistoryJob(jobId: string): Promise<{
         const chunk = 500;
         for (let i = 0; i < rows.length; i += chunk) {
           const slice = rows.slice(i, i + chunk);
-          const { error: upErr } = await supabaseAdmin
-            .from("messages")
-            .upsert(slice, {
-              onConflict: "conversation_id,external_msg_id",
-              ignoreDuplicates: true,
-            });
-          if (upErr) errors.push(`${chat.remote_jid}: upsert ${upErr.message}`);
-          else messagesImported += slice.length;
+          // Previne duplicados por external_msg_id sem depender de constraint ON CONFLICT que pode não existir no postgres
+          const incomingWithId = slice.filter((r) => r.external_msg_id);
+          let existingIds = new Set<string>();
+          if (incomingWithId.length > 0) {
+            const { data: existingRows } = await supabaseAdmin
+              .from("messages")
+              .select("external_msg_id")
+              .eq("conversation_id", conversationId)
+              .in("external_msg_id", incomingWithId.map((r) => r.external_msg_id!));
+            if (existingRows) {
+              existingIds = new Set(existingRows.map((r) => r.external_msg_id).filter((id): id is string => Boolean(id)));
+            }
+          }
+          const toInsert = slice.filter((r) => !r.external_msg_id || !existingIds.has(r.external_msg_id));
+          if (toInsert.length > 0) {
+            const { error: insErr } = await supabaseAdmin
+              .from("messages")
+              .insert(toInsert);
+            if (insErr) errors.push(`${chat.remote_jid}: insert ${insErr.message}`);
+            else messagesImported += toInsert.length;
+          }
         }
       }
 

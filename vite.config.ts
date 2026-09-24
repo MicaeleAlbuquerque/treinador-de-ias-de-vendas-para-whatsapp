@@ -12,4 +12,9 @@ export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
   },
+  vite: {
+    server: {
+      host: true, // Escuta em 0.0.0.0 liberando o link de Network para outros dispositivos e Docker
+    },
+  },
 });

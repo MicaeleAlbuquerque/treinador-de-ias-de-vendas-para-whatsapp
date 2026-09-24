@@ -823,20 +823,69 @@ function parseMessages(
       const tsRaw = m.messageTimestamp ?? m.timestamp;
       const tsNum = typeof tsRaw === "string" ? Number(tsRaw) : tsRaw;
       if (!tsNum) return null;
+
+      // Descarta mensagens de protocolo interno, distribuição de chaves ou reações sem conteúdo útil
+      if (m.messageType === "protocolMessage" || m.messageType === "senderKeyDistributionMessage") {
+        return null;
+      }
+
       const msg = m.message ?? {};
+      if (msg.protocolMessage || msg.senderKeyDistributionMessage) {
+        return null;
+      }
+
+      // Desempacota mensagens efêmeras, viewOnce, documentos com legenda etc.
+      const inner =
+        msg.ephemeralMessage?.message ??
+        msg.viewOnceMessage?.message ??
+        msg.viewOnceMessageV2?.message ??
+        msg.documentWithCaptionMessage?.message ??
+        msg;
+
       let mediaType: ImportedMessage["media_type"] = "text";
       let text = "";
       let audioBase64: string | null = null;
-      if (msg.conversation) { text = msg.conversation; }
-      else if (msg.extendedTextMessage?.text) { text = msg.extendedTextMessage.text; }
-      else if (msg.audioMessage || msg.pttMessage) {
+
+      if (inner.conversation) {
+        text = inner.conversation;
+      } else if (inner.extendedTextMessage?.text) {
+        text = inner.extendedTextMessage.text;
+      } else if (inner.audioMessage || inner.pttMessage) {
         mediaType = "audio";
-        const a = msg.audioMessage ?? msg.pttMessage;
+        const a = inner.audioMessage ?? inner.pttMessage;
         audioBase64 = a?.base64 ?? m.base64 ?? null;
+      } else if (inner.imageMessage) {
+        mediaType = "image";
+        text = inner.imageMessage.caption ?? "[Imagem]";
+      } else if (inner.videoMessage) {
+        mediaType = "video";
+        text = inner.videoMessage.caption ?? "[Vídeo]";
+      } else if (inner.documentMessage) {
+        mediaType = "document";
+        text = inner.documentMessage.caption ?? (inner.documentMessage.fileName ? `[Documento: ${inner.documentMessage.fileName}]` : "[Documento]");
+      } else if (inner.stickerMessage) {
+        mediaType = "image";
+        text = "[Figurinha]";
+      } else if (inner.contactMessage || inner.contactsArrayMessage) {
+        text = "[Contato]";
+      } else if (inner.locationMessage || inner.liveLocationMessage) {
+        text = "[Localização]";
+      } else if (inner.interactiveResponseMessage?.body?.text) {
+        text = inner.interactiveResponseMessage.body.text;
+      } else if (inner.buttonsResponseMessage?.selectedDisplayText) {
+        text = inner.buttonsResponseMessage.selectedDisplayText;
+      } else if (inner.templateButtonReplyMessage?.selectedDisplayText) {
+        text = inner.templateButtonReplyMessage.selectedDisplayText;
+      } else if (inner.listResponseMessage?.title) {
+        text = inner.listResponseMessage.title;
+      } else if (typeof m.body === "string" && m.body.trim()) {
+        text = m.body.trim();
       }
-      else if (msg.imageMessage) { mediaType = "image"; text = msg.imageMessage.caption ?? ""; }
-      else if (msg.videoMessage) { mediaType = "video"; text = msg.videoMessage.caption ?? ""; }
-      else if (msg.documentMessage) { mediaType = "document"; text = msg.documentMessage.caption ?? ""; }
+
+      // Se for apenas texto mas sem nenhum conteúdo, descarta stubs vazios
+      if (mediaType === "text" && !text.trim()) {
+        return null;
+      }
 
       return {
         external_msg_id: m.key?.id ?? null,

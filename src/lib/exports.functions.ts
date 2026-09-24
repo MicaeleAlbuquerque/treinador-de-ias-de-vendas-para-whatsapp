@@ -140,3 +140,171 @@ export const generateFinetuneFn = createServerFn({ method: "POST" })
     });
     return { ok: true, url };
   });
+
+// ---------- Listagem Server-side resiliente (bypass RLS) ----------
+export const listPromptVersionsFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { snapshotId: string }) =>
+    z.object({ snapshotId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { data: rows, error } = await supabaseAdmin
+      .from("prompt_versions")
+      .select("*")
+      .eq("dna_snapshot_id", data.snapshotId)
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.warn("[listPromptVersionsFn] Erro ao listar versões:", error);
+      return [];
+    }
+    return rows ?? [];
+  });
+
+export const listPlaybooksFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { snapshotId: string }) =>
+    z.object({ snapshotId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { data: rows, error } = await supabaseAdmin
+      .from("playbooks")
+      .select("*")
+      .eq("dna_snapshot_id", data.snapshotId)
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.warn("[listPlaybooksFn] Erro ao listar playbooks:", error);
+      return [];
+    }
+    return rows ?? [];
+  });
+
+const EXPORT_TYPES = [
+  "system_prompt",
+  "playbook",
+  "fewshot",
+  "rag",
+  "finetune_openai",
+  "finetune_gemini",
+] as const;
+
+type ExportType = (typeof EXPORT_TYPES)[number];
+
+export const listExportJobsFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { snapshotId: string; type?: ExportType; types?: ExportType[] }) =>
+    z.object({
+      snapshotId: z.string().uuid(),
+      type: z.enum(EXPORT_TYPES).optional(),
+      types: z.array(z.enum(EXPORT_TYPES)).optional(),
+    }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    let query = supabaseAdmin
+      .from("export_jobs")
+      .select("*")
+      .eq("dna_snapshot_id", data.snapshotId);
+
+    if (data.type) {
+      query = query.eq("type", data.type);
+    } else if (data.types && data.types.length > 0) {
+      query = query.in("type", data.types);
+    }
+
+    const { data: rows, error } = await query
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (error) {
+      console.warn("[listExportJobsFn] Erro ao listar export_jobs:", error);
+      return [];
+    }
+    return rows ?? [];
+  });
+
+// ---------- Deleção Server-side (com limpeza de storage e RLS bypass) ----------
+export const deletePromptVersionFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) =>
+    z.object({ id: z.string().uuid() }).parse(data)
+  )
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.userId);
+    // Se a versão deletada for a versão publicada como padrão, limpa a referência em app_settings
+    await supabaseAdmin
+      .from("app_settings")
+      .update({ published_prompt_version_id: null, updated_at: new Date().toISOString() })
+      .eq("published_prompt_version_id", data.id);
+
+    const { error } = await supabaseAdmin
+      .from("prompt_versions")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deletePlaybookFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) =>
+    z.object({ id: z.string().uuid() }).parse(data)
+  )
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.userId);
+    const { data: row } = await supabaseAdmin
+      .from("playbooks")
+      .select("file_url")
+      .eq("id", data.id)
+      .maybeSingle();
+
+    if (row?.file_url) {
+      try {
+        const match = row.file_url.match(/exports\/([^?]+)/);
+        if (match?.[1]) {
+          await supabaseAdmin.storage.from("exports").remove([decodeURIComponent(match[1])]);
+        }
+      } catch (e) {
+        console.warn("[deletePlaybookFn] Aviso ao remover arquivo do storage:", e);
+      }
+    }
+
+    const { error } = await supabaseAdmin
+      .from("playbooks")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteExportJobFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) =>
+    z.object({ id: z.string().uuid() }).parse(data)
+  )
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.userId);
+    const { data: row } = await supabaseAdmin
+      .from("export_jobs")
+      .select("file_url")
+      .eq("id", data.id)
+      .maybeSingle();
+
+    if (row?.file_url) {
+      try {
+        const match = row.file_url.match(/exports\/([^?]+)/);
+        if (match?.[1]) {
+          await supabaseAdmin.storage.from("exports").remove([decodeURIComponent(match[1])]);
+        }
+      } catch (e) {
+        console.warn("[deleteExportJobFn] Aviso ao remover arquivo do storage:", e);
+      }
+    }
+
+    const { error } = await supabaseAdmin
+      .from("export_jobs")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+

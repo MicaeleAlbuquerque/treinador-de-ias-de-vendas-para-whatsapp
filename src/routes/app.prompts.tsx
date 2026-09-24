@@ -5,10 +5,12 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMyRole } from "@/lib/user-role";
 import { toast } from "sonner";
-import { Copy, Download, FileText, Sparkles, Database, Brain, BookOpen, Trophy } from "lucide-react";
+import { Copy, Download, FileText, Sparkles, Database, Brain, BookOpen, Trophy, Trash2 } from "lucide-react";
 import {
   generateSystemPromptFn, publishPromptVersionFn, generatePlaybookFn,
   generateFewShotFn, generateRagFn, generateFinetuneFn,
+  listPromptVersionsFn, listPlaybooksFn, listExportJobsFn,
+  deletePromptVersionFn, deletePlaybookFn, deleteExportJobFn,
 } from "@/lib/exports.functions";
 import { getCurrentPlaybook } from "@/lib/playbook.functions";
 
@@ -191,12 +193,24 @@ function PlaybookExportCard({ playbook }: { playbook: any }) {
 
       {/* System prompt */}
       {systemPrompt && (
-        <div className="rounded-lg border border-border">
-          <button onClick={() => setShowPrompt((v) => !v)} className="flex w-full items-center gap-2 px-3 py-2 bg-muted/30 text-sm font-semibold">
-            <Brain size={14} /> System prompt {showPrompt ? "▾" : "▸"}
-          </button>
+        <div className="rounded-lg border border-border overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 bg-muted/40 text-sm font-semibold border-b border-border">
+            <button onClick={() => setShowPrompt((v) => !v)} className="flex items-center gap-2 hover:opacity-85 transition-opacity">
+              <Brain size={14} className="text-[color:var(--via-blue)]" />
+              <span className="font-bold text-foreground">System prompt do Playbook</span>
+              <span className="text-xs text-muted-foreground">{showPrompt ? "▾" : "▸"}</span>
+            </button>
+            <button
+              onClick={() => { navigator.clipboard.writeText(systemPrompt); toast.success("System prompt copiado."); }}
+              className="via-btn via-btn-secondary via-btn-sm py-1 text-xs"
+            >
+              <Copy size={12} /> Copiar
+            </button>
+          </div>
           {showPrompt && (
-            <pre className="text-xs whitespace-pre-wrap font-mono bg-background p-3 max-h-72 overflow-y-auto">{systemPrompt}</pre>
+            <pre className="via-code-box border-0 rounded-none text-xs whitespace-pre-wrap font-mono p-4 max-h-80 overflow-y-auto leading-relaxed select-text">
+              {systemPrompt}
+            </pre>
           )}
         </div>
       )}
@@ -204,13 +218,16 @@ function PlaybookExportCard({ playbook }: { playbook: any }) {
       {/* Scripts vencedores */}
       {winning.length > 0 && (
         <div>
-          <div className="text-sm font-semibold mb-2">Scripts vencedores ({winning.length})</div>
+          <div className="text-sm font-bold mb-2 flex items-center gap-2">
+            <span>Scripts vencedores</span>
+            <span className="via-badge via-badge-success text-[10px]">{winning.length}</span>
+          </div>
           <ul className="space-y-2 text-sm">
             {winning.map((s: any, i: number) => (
-              <li key={i} className="rounded border border-green-200 bg-green-50/40 dark:bg-green-950/20 p-2">
-                <div className="text-[11px] uppercase tracking-wide text-green-700 dark:text-green-400">{s.category}</div>
-                <div className="mt-1">"{s.script}"</div>
-                {s.why && <div className="text-xs text-muted-foreground mt-1">{s.why}</div>}
+              <li key={i} className="rounded-lg border border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/20 p-3">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">{s.category}</div>
+                <div className="mt-1 font-medium text-foreground">"{s.script}"</div>
+                {s.why && <div className="text-xs text-muted-foreground mt-1.5">{s.why}</div>}
               </li>
             ))}
           </ul>
@@ -220,13 +237,16 @@ function PlaybookExportCard({ playbook }: { playbook: any }) {
       {/* Padrões a evitar */}
       {losing.length > 0 && (
         <div>
-          <div className="text-sm font-semibold mb-2">Padrões a evitar ({losing.length})</div>
+          <div className="text-sm font-bold mb-2 flex items-center gap-2">
+            <span>Padrões a evitar</span>
+            <span className="via-badge via-badge-danger text-[10px]">{losing.length}</span>
+          </div>
           <ul className="space-y-2 text-sm">
             {losing.map((s: any, i: number) => (
-              <li key={i} className="rounded border border-red-200 bg-red-50/40 dark:bg-red-950/20 p-2">
-                <div className="text-[11px] uppercase tracking-wide text-red-700 dark:text-red-400">{s.category}</div>
-                <div className="mt-1">"{s.script}"</div>
-                {s.why_bad && <div className="text-xs text-muted-foreground mt-1">{s.why_bad}</div>}
+              <li key={i} className="rounded-lg border border-rose-500/30 bg-rose-50/40 dark:bg-rose-950/20 p-3">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">{s.category}</div>
+                <div className="mt-1 font-medium text-foreground">"{s.script}"</div>
+                {s.why_bad && <div className="text-xs text-muted-foreground mt-1.5">{s.why_bad}</div>}
               </li>
             ))}
           </ul>
@@ -236,17 +256,20 @@ function PlaybookExportCard({ playbook }: { playbook: any }) {
       {/* Pontos de treinamento */}
       {tips.length > 0 && (
         <div>
-          <div className="text-sm font-semibold mb-2">Pontos de treinamento ({tips.length})</div>
+          <div className="text-sm font-bold mb-2 flex items-center gap-2">
+            <span>Pontos de treinamento</span>
+            <span className="via-badge via-badge-warning text-[10px]">{tips.length}</span>
+          </div>
           <ul className="space-y-2 text-sm">
             {tips.map((t: any, i: number) => {
-              const cls = t.priority === "high" ? "border-red-200 bg-red-50/30 dark:bg-red-950/20"
-                : t.priority === "medium" ? "border-amber-200 bg-amber-50/30 dark:bg-amber-950/20"
+              const cls = t.priority === "high" ? "border-rose-500/30 bg-rose-50/30 dark:bg-rose-950/20"
+                : t.priority === "medium" ? "border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/20"
                 : "border-border bg-muted/20";
               return (
-                <li key={i} className={`rounded border ${cls} p-2`}>
-                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Prioridade: {t.priority ?? "—"}</div>
-                  <div className="mt-1"><strong>Gap:</strong> {t.gap}</div>
-                  <div className="text-sm mt-1"><strong>Drill:</strong> {t.drill}</div>
+                <li key={i} className={`rounded-lg border ${cls} p-3`}>
+                  <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Prioridade: {t.priority ?? "—"}</div>
+                  <div className="mt-1 text-foreground"><strong>Gap:</strong> {t.gap}</div>
+                  <div className="text-sm mt-1 text-foreground"><strong>Drill:</strong> {t.drill}</div>
                 </li>
               );
             })}
@@ -257,28 +280,28 @@ function PlaybookExportCard({ playbook }: { playbook: any }) {
       {/* Vocabulário + tom */}
       {((vocab.signature_phrases ?? []).length > 0 || (vocab.avoid ?? []).length > 0 || tone.description) && (
         <div className="grid md:grid-cols-2 gap-3 text-sm">
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Expressões da marca</div>
-            <ul className="mt-1 text-xs space-y-1 list-disc pl-4">
+          <div className="rounded-lg border border-border bg-card p-3">
+            <div className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Expressões da marca</div>
+            <ul className="mt-2 text-xs space-y-1 list-disc pl-4 text-foreground">
               {(vocab.signature_phrases ?? []).map((p: string, i: number) => <li key={i}>{p}</li>)}
             </ul>
             {(vocab.avoid ?? []).length > 0 && (
               <>
-                <div className="text-xs uppercase tracking-wide text-muted-foreground mt-3">Evitar</div>
-                <ul className="mt-1 text-xs space-y-1 list-disc pl-4 text-red-700 dark:text-red-400">
+                <div className="text-xs uppercase font-bold tracking-wide text-rose-600 dark:text-rose-400 mt-3">Evitar</div>
+                <ul className="mt-1 text-xs space-y-1 list-disc pl-4 text-rose-700 dark:text-rose-400 font-medium">
                   {(vocab.avoid ?? []).map((p: string, i: number) => <li key={i}>{p}</li>)}
                 </ul>
               </>
             )}
           </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Tom</div>
-            <ul className="mt-1 text-xs space-y-1">
+          <div className="rounded-lg border border-border bg-card p-3">
+            <div className="text-xs uppercase font-bold tracking-wide text-muted-foreground">Tom</div>
+            <ul className="mt-2 text-xs space-y-1 text-foreground">
               <li><strong>Formalidade:</strong> {tone.formality ?? "—"}</li>
               <li><strong>Registro:</strong> {tone.register ?? "—"}</li>
               <li><strong>Energia:</strong> {tone.energy ?? "—"}</li>
             </ul>
-            {tone.description && <p className="text-xs mt-2 text-muted-foreground">{tone.description}</p>}
+            {tone.description && <p className="text-xs mt-2 text-muted-foreground leading-relaxed">{tone.description}</p>}
           </div>
         </div>
       )}
@@ -290,18 +313,18 @@ function SystemPromptCard({ snapshotId, publishedId, onChange }: { snapshotId: s
   const qc = useQueryClient();
   const genFn = useServerFn(generateSystemPromptFn);
   const pubFn = useServerFn(publishPromptVersionFn);
+  const delFn = useServerFn(deletePromptVersionFn);
   const [tom, setTom] = useState<"formal" | "casual" | "comercial">("comercial");
   const [vertical, setVertical] = useState("");
   const [foco, setFoco] = useState("");
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<string>("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const listVersions = useServerFn(listPromptVersionsFn);
   const versionsQ = useQuery({
     queryKey: ["prompt-versions", snapshotId],
-    queryFn: async () => {
-      const { data } = await supabase.from("prompt_versions").select("*").eq("dna_snapshot_id", snapshotId).order("created_at", { ascending: false });
-      return data ?? [];
-    },
+    queryFn: () => listVersions({ data: { snapshotId } }),
   });
 
   async function gen() {
@@ -319,6 +342,17 @@ function SystemPromptCard({ snapshotId, publishedId, onChange }: { snapshotId: s
     catch (e) { toast.error((e as Error).message); }
   }
 
+  async function removeVersion(id: string) {
+    if (!confirm("Tem certeza que deseja excluir esta versão do system prompt?")) return;
+    setDeletingId(id);
+    try {
+      await delFn({ data: { id } });
+      toast.success("Versão excluída");
+      qc.invalidateQueries({ queryKey: ["prompt-versions", snapshotId] });
+      if (id === publishedId) onChange();
+    } catch (e) { toast.error((e as Error).message); } finally { setDeletingId(null); }
+  }
+
   function download(text: string, name: string) {
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -326,44 +360,105 @@ function SystemPromptCard({ snapshotId, publishedId, onChange }: { snapshotId: s
   }
 
   return (
-    <div className="via-card space-y-3">
-      <h2 className="text-lg font-bold flex items-center gap-2"><Brain size={18}/> System Prompt</h2>
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <label className="space-y-1"><span className="text-xs text-muted-foreground">Tom</span>
-          <select value={tom} onChange={(e) => setTom(e.target.value as any)} className="w-full border rounded px-2 py-1">
-            <option value="comercial">Comercial</option><option value="formal">Formal</option><option value="casual">Casual</option>
-          </select></label>
-        <label className="space-y-1"><span className="text-xs text-muted-foreground">Vertical</span>
-          <input value={vertical} onChange={(e) => setVertical(e.target.value)} className="w-full border rounded px-2 py-1" placeholder="ex: imóveis" /></label>
-        <label className="space-y-1 col-span-2"><span className="text-xs text-muted-foreground">Foco em objeção (opcional, categoria)</span>
-          <input value={foco} onChange={(e) => setFoco(e.target.value)} className="w-full border rounded px-2 py-1" placeholder="preço, prazo, ..." /></label>
+    <div className="via-card space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold flex items-center gap-2"><Brain size={18} className="text-[color:var(--via-blue)]"/> System Prompt</h2>
+        <span className="via-badge via-badge-blue text-[10px]">Tier 2</span>
       </div>
-      <button disabled={busy} onClick={gen} className="via-btn via-btn-primary">{busy ? "Gerando…" : "Gerar versão"}</button>
-      {preview && (
-        <div className="space-y-2">
-          <textarea readOnly value={preview} className="w-full text-xs font-mono border rounded p-2 h-48" />
-          <div className="flex gap-2">
-            <button className="via-btn via-btn-secondary text-xs" onClick={() => { navigator.clipboard.writeText(preview); toast.success("Copiado"); }}><Copy size={12} /> Copiar</button>
-            <button className="via-btn via-btn-secondary text-xs" onClick={() => download(preview, "system-prompt.txt")}><Download size={12} /> .txt</button>
+
+      <div className="space-y-3 text-sm">
+        <div className="space-y-1.5">
+          <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Tom de Voz</span>
+          <div className="via-choice-bar w-full flex">
+            {(["comercial", "formal", "casual"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTom(t)}
+                className={`via-choice-btn flex-1 py-1.5 capitalize ${tom === t ? "via-choice-btn-active" : ""}`}
+              >
+                {t}
+              </button>
+            ))}
           </div>
         </div>
-      )}
-      <div className="text-xs text-muted-foreground border-t border-border pt-2">Versões ({(versionsQ.data ?? []).length})</div>
-      <div className="space-y-1 max-h-48 overflow-y-auto">
-        {(versionsQ.data ?? []).map((v: any) => (
-          <div key={v.id} className="flex items-center justify-between gap-2 text-xs border-b border-border py-1">
-            <div className="flex-1 truncate">
-              <div className="font-bold">{v.name} {v.id === publishedId && <span className="text-green-700">★ publicada</span>}</div>
-              <div className="text-muted-foreground">{new Date(v.created_at).toLocaleString("pt-BR")}</div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <label className="space-y-1">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Vertical</span>
+            <input
+              value={vertical}
+              onChange={(e) => setVertical(e.target.value)}
+              className="via-input text-xs py-1.5"
+              placeholder="ex: imóveis, cursos, b2b..."
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Foco em objeção</span>
+            <input
+              value={foco}
+              onChange={(e) => setFoco(e.target.value)}
+              className="via-input text-xs py-1.5"
+              placeholder="ex: preço, prazo..."
+            />
+          </label>
+        </div>
+      </div>
+
+      <button disabled={busy} onClick={gen} className="via-btn via-btn-primary w-full">
+        {busy ? "Gerando…" : "Gerar nova versão"}
+      </button>
+
+      {preview && (
+        <div className="space-y-2 pt-2 border-t border-border">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-foreground">Prévia do prompt gerado</span>
+            <div className="flex gap-1.5">
+              <button className="via-btn via-btn-secondary via-btn-sm py-1 text-xs" onClick={() => { navigator.clipboard.writeText(preview); toast.success("Copiado"); }}>
+                <Copy size={12} /> Copiar
+              </button>
+              <button className="via-btn via-btn-secondary via-btn-sm py-1 text-xs" onClick={() => download(preview, "system-prompt.txt")}>
+                <Download size={12} /> .txt
+              </button>
             </div>
-            <div className="flex gap-1">
-              <button className="via-btn via-btn-secondary text-xs" onClick={() => setPreview(v.system_prompt)}>Ver</button>
-              <button className="via-btn via-btn-secondary text-xs" onClick={() => download(v.system_prompt, `prompt-${v.id.slice(0,8)}.txt`)}><Download size={10}/></button>
-              {v.id !== publishedId && <button className="via-btn via-btn-primary text-xs" onClick={() => publish(v.id)}>Publicar</button>}
+          </div>
+          <textarea
+            readOnly
+            value={preview}
+            className="w-full via-code-box text-xs font-mono p-3 h-52 leading-relaxed focus:outline-none select-text"
+          />
+        </div>
+      )}
+
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground border-t border-border pt-3">
+        Versões salvas ({(versionsQ.data ?? []).length})
+      </div>
+      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+        {(versionsQ.data ?? []).map((v: any) => (
+          <div key={v.id} className="flex items-center justify-between gap-2 text-xs rounded-lg border border-border/70 bg-card p-2">
+            <div className="flex-1 truncate">
+              <div className="font-bold text-foreground flex items-center gap-1.5">
+                <span>{v.name}</span>
+                {v.id === publishedId && <span className="via-badge via-badge-success text-[10px]">Publicada</span>}
+              </div>
+              <div className="text-[11px] text-muted-foreground">{new Date(v.created_at).toLocaleString("pt-BR")}</div>
+            </div>
+            <div className="flex gap-1 items-center">
+              <button className="via-btn via-btn-secondary via-btn-sm py-1 text-xs" onClick={() => setPreview(v.system_prompt)}>Ver</button>
+              <button className="via-btn via-btn-secondary via-btn-sm py-1 text-xs" onClick={() => download(v.system_prompt, `prompt-${v.id.slice(0,8)}.txt`)} title="Baixar .txt"><Download size={11}/></button>
+              {v.id !== publishedId && <button className="via-btn via-btn-primary via-btn-sm py-1 text-xs" onClick={() => publish(v.id)}>Publicar</button>}
+              <button
+                disabled={deletingId === v.id}
+                className="via-btn via-btn-secondary via-btn-sm py-1 px-1.5 text-muted-foreground hover:text-rose-500 hover:border-rose-500/30 transition-colors"
+                onClick={() => removeVersion(v.id)}
+                title="Excluir versão"
+              >
+                <Trash2 size={12} />
+              </button>
             </div>
           </div>
         ))}
-        {(versionsQ.data ?? []).length === 0 && <div className="text-xs text-muted-foreground">Nenhuma versão ainda.</div>}
+        {(versionsQ.data ?? []).length === 0 && <div className="text-xs text-muted-foreground py-2">Nenhuma versão salva ainda.</div>}
       </div>
     </div>
   );
@@ -372,38 +467,81 @@ function SystemPromptCard({ snapshotId, publishedId, onChange }: { snapshotId: s
 function PlaybookCard({ snapshotId }: { snapshotId: string }) {
   const qc = useQueryClient();
   const fn = useServerFn(generatePlaybookFn);
+  const delFn = useServerFn(deletePlaybookFn);
   const [format, setFormat] = useState<"pdf" | "markdown">("pdf");
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const listPlaybooks = useServerFn(listPlaybooksFn);
   const q = useQuery({
     queryKey: ["playbooks", snapshotId],
-    queryFn: async () => {
-      const { data } = await supabase.from("playbooks").select("*").eq("dna_snapshot_id", snapshotId).order("created_at", { ascending: false });
-      return data ?? [];
-    },
+    queryFn: () => listPlaybooks({ data: { snapshotId } }),
   });
   async function gen() {
     setBusy(true);
     try { await fn({ data: { format } }); toast.success("Playbook gerado"); qc.invalidateQueries({ queryKey: ["playbooks", snapshotId] }); }
     catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   }
+  async function removePlaybook(id: string) {
+    if (!confirm("Tem certeza que deseja excluir este playbook?")) return;
+    setDeletingId(id);
+    try {
+      await delFn({ data: { id } });
+      toast.success("Playbook excluído");
+      qc.invalidateQueries({ queryKey: ["playbooks", snapshotId] });
+    } catch (e) { toast.error((e as Error).message); } finally { setDeletingId(null); }
+  }
   return (
-    <div className="via-card space-y-3">
-      <h2 className="text-lg font-bold flex items-center gap-2"><BookOpen size={18}/> Playbook</h2>
-      <div className="flex gap-2 items-end">
-        <label className="space-y-1 text-sm flex-1"><span className="text-xs text-muted-foreground">Formato</span>
-          <select value={format} onChange={(e) => setFormat(e.target.value as any)} className="w-full border rounded px-2 py-1">
-            <option value="pdf">PDF</option><option value="markdown">Markdown</option>
-          </select></label>
-        <button disabled={busy} onClick={gen} className="via-btn via-btn-primary">{busy ? "Gerando…" : "Gerar"}</button>
+    <div className="via-card space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold flex items-center gap-2"><BookOpen size={18} className="text-[color:var(--via-blue)]"/> Playbook</h2>
+        <span className="via-badge via-badge-blue text-[10px]">Exportação</span>
       </div>
-      <div className="space-y-1 max-h-48 overflow-y-auto">
+
+      <div className="space-y-2">
+        <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Formato de Exportação</span>
+        <div className="flex gap-2 items-center">
+          <div className="via-choice-bar flex-1">
+            {(["pdf", "markdown"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFormat(f)}
+                className={`via-choice-btn flex-1 py-1.5 uppercase ${format === f ? "via-choice-btn-active" : ""}`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          <button disabled={busy} onClick={gen} className="via-btn via-btn-primary shrink-0">
+            {busy ? "Gerando…" : "Gerar"}
+          </button>
+        </div>
+      </div>
+
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground border-t border-border pt-3">
+        Arquivos gerados ({(q.data ?? []).length})
+      </div>
+      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
         {(q.data ?? []).map((p: any) => (
-          <div key={p.id} className="flex items-center justify-between gap-2 text-xs border-b border-border py-1">
-            <div>{p.format.toUpperCase()} · {new Date(p.created_at).toLocaleString("pt-BR")}</div>
-            {p.file_url && <a href={p.file_url} target="_blank" rel="noreferrer" className="via-btn via-btn-secondary text-xs"><Download size={10}/> Baixar</a>}
+          <div key={p.id} className="flex items-center justify-between gap-2 text-xs rounded-lg border border-border/70 bg-card p-2">
+            <div>
+              <span className="font-bold text-foreground uppercase">{p.format}</span>
+              <span className="text-[11px] text-muted-foreground ml-2">{new Date(p.created_at).toLocaleString("pt-BR")}</span>
+            </div>
+            <div className="flex gap-1 items-center">
+              {p.file_url && <a href={p.file_url} target="_blank" rel="noreferrer" className="via-btn via-btn-secondary via-btn-sm py-1 text-xs"><Download size={11}/> Baixar</a>}
+              <button
+                disabled={deletingId === p.id}
+                className="via-btn via-btn-secondary via-btn-sm py-1 px-1.5 text-muted-foreground hover:text-rose-500 hover:border-rose-500/30 transition-colors"
+                onClick={() => removePlaybook(p.id)}
+                title="Excluir playbook"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
           </div>
         ))}
-        {(q.data ?? []).length === 0 && <div className="text-xs text-muted-foreground">Nenhum playbook ainda.</div>}
+        {(q.data ?? []).length === 0 && <div className="text-xs text-muted-foreground py-2">Nenhum playbook gerado ainda.</div>}
       </div>
     </div>
   );
@@ -412,35 +550,76 @@ function PlaybookCard({ snapshotId }: { snapshotId: string }) {
 function FewShotCard({ snapshotId }: { snapshotId: string }) {
   const qc = useQueryClient();
   const fn = useServerFn(generateFewShotFn);
+  const delFn = useServerFn(deleteExportJobFn);
   const [topN, setTopN] = useState(50);
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const listJobs = useServerFn(listExportJobsFn);
   const q = useQuery({
     queryKey: ["jobs-fewshot", snapshotId],
-    queryFn: async () => {
-      const { data } = await supabase.from("export_jobs").select("*").eq("dna_snapshot_id", snapshotId).eq("type", "fewshot").order("created_at", { ascending: false }).limit(5);
-      return data ?? [];
-    },
+    queryFn: () => listJobs({ data: { snapshotId, type: "fewshot" } }),
   });
   async function gen() {
     setBusy(true);
     try { const r = await fn({ data: { topN } }) as any; toast.success(`Few-shot pronto (${r.count} amostras)`); qc.invalidateQueries({ queryKey: ["jobs-fewshot", snapshotId] }); }
     catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   }
+  async function removeJob(id: string) {
+    if (!confirm("Tem certeza que deseja excluir este dataset?")) return;
+    setDeletingId(id);
+    try {
+      await delFn({ data: { id } });
+      toast.success("Dataset excluído");
+      qc.invalidateQueries({ queryKey: ["jobs-fewshot", snapshotId] });
+    } catch (e) { toast.error((e as Error).message); } finally { setDeletingId(null); }
+  }
   return (
-    <div className="via-card space-y-3">
-      <h2 className="text-lg font-bold flex items-center gap-2"><FileText size={18}/> Few-shot dataset</h2>
-      <div className="flex gap-2 items-end">
-        <label className="space-y-1 text-sm flex-1"><span className="text-xs text-muted-foreground">Top N conversas ganhas</span>
-          <input type="number" min={1} max={500} value={topN} onChange={(e) => setTopN(Number(e.target.value))} className="w-full border rounded px-2 py-1" /></label>
-        <button disabled={busy} onClick={gen} className="via-btn via-btn-primary">{busy ? "Gerando…" : "Gerar"}</button>
+    <div className="via-card space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold flex items-center gap-2"><FileText size={18} className="text-[color:var(--via-blue)]"/> Few-shot Dataset</h2>
+        <span className="via-badge via-badge-blue text-[10px]">Treinamento</span>
       </div>
-      <div className="space-y-1 max-h-32 overflow-y-auto">
+
+      <div className="space-y-2">
+        <label className="block space-y-1.5 text-sm">
+          <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Top N conversas ganhas</span>
+          <div className="flex gap-2 items-center">
+            <input
+              type="number"
+              min={1}
+              max={500}
+              value={topN}
+              onChange={(e) => setTopN(Number(e.target.value))}
+              className="via-input flex-1 py-1.5 text-xs"
+            />
+            <button disabled={busy} onClick={gen} className="via-btn via-btn-primary shrink-0">
+              {busy ? "Gerando…" : "Gerar"}
+            </button>
+          </div>
+        </label>
+      </div>
+
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground border-t border-border pt-3">
+        Datasets prontos ({(q.data ?? []).length})
+      </div>
+      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
         {(q.data ?? []).map((j: any) => (
-          <div key={j.id} className="flex items-center justify-between gap-2 text-xs border-b border-border py-1">
-            <div>{new Date(j.created_at).toLocaleString("pt-BR")}</div>
-            {j.file_url && <a href={j.file_url} target="_blank" rel="noreferrer" className="via-btn via-btn-secondary text-xs"><Download size={10}/> .json</a>}
+          <div key={j.id} className="flex items-center justify-between gap-2 text-xs rounded-lg border border-border/70 bg-card p-2">
+            <div className="text-foreground">{new Date(j.created_at).toLocaleString("pt-BR")}</div>
+            <div className="flex gap-1 items-center">
+              {j.file_url && <a href={j.file_url} target="_blank" rel="noreferrer" className="via-btn via-btn-secondary via-btn-sm py-1 text-xs"><Download size={11}/> .json</a>}
+              <button
+                disabled={deletingId === j.id}
+                className="via-btn via-btn-secondary via-btn-sm py-1 px-1.5 text-muted-foreground hover:text-rose-500 hover:border-rose-500/30 transition-colors"
+                onClick={() => removeJob(j.id)}
+                title="Excluir dataset"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
           </div>
         ))}
+        {(q.data ?? []).length === 0 && <div className="text-xs text-muted-foreground py-2">Nenhum dataset gerado ainda.</div>}
       </div>
     </div>
   );
@@ -449,31 +628,62 @@ function FewShotCard({ snapshotId }: { snapshotId: string }) {
 function RagCard({ snapshotId }: { snapshotId: string }) {
   const qc = useQueryClient();
   const fn = useServerFn(generateRagFn);
+  const delFn = useServerFn(deleteExportJobFn);
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const listJobs = useServerFn(listExportJobsFn);
   const q = useQuery({
     queryKey: ["jobs-rag", snapshotId],
-    queryFn: async () => {
-      const { data } = await supabase.from("export_jobs").select("*").eq("dna_snapshot_id", snapshotId).eq("type", "rag").order("created_at", { ascending: false }).limit(5);
-      return data ?? [];
-    },
+    queryFn: () => listJobs({ data: { snapshotId, type: "rag" } }),
   });
   async function gen() {
     setBusy(true);
     try { await fn(); toast.success("RAG bundle gerado"); qc.invalidateQueries({ queryKey: ["jobs-rag", snapshotId] }); }
     catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   }
+  async function removeJob(id: string) {
+    if (!confirm("Tem certeza que deseja excluir este bundle RAG?")) return;
+    setDeletingId(id);
+    try {
+      await delFn({ data: { id } });
+      toast.success("Bundle RAG excluído");
+      qc.invalidateQueries({ queryKey: ["jobs-rag", snapshotId] });
+    } catch (e) { toast.error((e as Error).message); } finally { setDeletingId(null); }
+  }
   return (
-    <div className="via-card space-y-3">
-      <h2 className="text-lg font-bold flex items-center gap-2"><Database size={18}/> RAG bundle</h2>
-      <p className="text-xs text-muted-foreground">FAQ + snippets por etapa + objeções vencedoras. Ingestion direta em N8N, Typebot, etc.</p>
-      <button disabled={busy} onClick={gen} className="via-btn via-btn-primary">{busy ? "Gerando…" : "Gerar bundle"}</button>
-      <div className="space-y-1 max-h-32 overflow-y-auto">
+    <div className="via-card space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold flex items-center gap-2"><Database size={18} className="text-[color:var(--via-blue)]"/> RAG Bundle</h2>
+        <span className="via-badge via-badge-blue text-[10px]">Knowledge</span>
+      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        FAQ estruturada + snippets por etapa do funil + objeções vencedoras catalogadas. Ingestion direta para N8N, Typebot ou vetores.
+      </p>
+      <button disabled={busy} onClick={gen} className="via-btn via-btn-primary w-full">
+        {busy ? "Gerando…" : "Gerar bundle RAG"}
+      </button>
+
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground border-t border-border pt-3">
+        Bundles gerados ({(q.data ?? []).length})
+      </div>
+      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
         {(q.data ?? []).map((j: any) => (
-          <div key={j.id} className="flex items-center justify-between gap-2 text-xs border-b border-border py-1">
-            <div>{new Date(j.created_at).toLocaleString("pt-BR")}</div>
-            {j.file_url && <a href={j.file_url} target="_blank" rel="noreferrer" className="via-btn via-btn-secondary text-xs"><Download size={10}/> .json</a>}
+          <div key={j.id} className="flex items-center justify-between gap-2 text-xs rounded-lg border border-border/70 bg-card p-2">
+            <div className="text-foreground">{new Date(j.created_at).toLocaleString("pt-BR")}</div>
+            <div className="flex gap-1 items-center">
+              {j.file_url && <a href={j.file_url} target="_blank" rel="noreferrer" className="via-btn via-btn-secondary via-btn-sm py-1 text-xs"><Download size={11}/> .json</a>}
+              <button
+                disabled={deletingId === j.id}
+                className="via-btn via-btn-secondary via-btn-sm py-1 px-1.5 text-muted-foreground hover:text-rose-500 hover:border-rose-500/30 transition-colors"
+                onClick={() => removeJob(j.id)}
+                title="Excluir bundle"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
           </div>
         ))}
+        {(q.data ?? []).length === 0 && <div className="text-xs text-muted-foreground py-2">Nenhum bundle gerado ainda.</div>}
       </div>
     </div>
   );
@@ -482,39 +692,82 @@ function RagCard({ snapshotId }: { snapshotId: string }) {
 function FinetuneCard({ snapshotId }: { snapshotId: string }) {
   const qc = useQueryClient();
   const fn = useServerFn(generateFinetuneFn);
+  const delFn = useServerFn(deleteExportJobFn);
   const [provider, setProvider] = useState<"openai" | "gemini">("openai");
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const listJobs = useServerFn(listExportJobsFn);
   const q = useQuery({
     queryKey: ["jobs-ft", snapshotId],
-    queryFn: async () => {
-      const { data } = await supabase.from("export_jobs").select("*").eq("dna_snapshot_id", snapshotId).in("type", ["finetune_openai", "finetune_gemini"]).order("created_at", { ascending: false }).limit(5);
-      return data ?? [];
-    },
+    queryFn: () => listJobs({ data: { snapshotId, types: ["finetune_openai", "finetune_gemini"] } }),
   });
   async function gen() {
     setBusy(true);
     try { await fn({ data: { provider } }); toast.success("Dataset de fine-tuning gerado"); qc.invalidateQueries({ queryKey: ["jobs-ft", snapshotId] }); }
     catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   }
+  async function removeJob(id: string) {
+    if (!confirm("Tem certeza que deseja excluir este dataset de fine-tuning?")) return;
+    setDeletingId(id);
+    try {
+      await delFn({ data: { id } });
+      toast.success("Dataset excluído");
+      qc.invalidateQueries({ queryKey: ["jobs-ft", snapshotId] });
+    } catch (e) { toast.error((e as Error).message); } finally { setDeletingId(null); }
+  }
   return (
-    <div className="via-card space-y-3">
-      <h2 className="text-lg font-bold flex items-center gap-2"><Sparkles size={18}/> Fine-tuning</h2>
-      <div className="flex gap-2 items-end">
-        <label className="space-y-1 text-sm flex-1"><span className="text-xs text-muted-foreground">Provider</span>
-          <select value={provider} onChange={(e) => setProvider(e.target.value as any)} className="w-full border rounded px-2 py-1">
-            <option value="openai">OpenAI (.jsonl chat)</option>
-            <option value="gemini">Gemini (.jsonl)</option>
-          </select></label>
-        <button disabled={busy} onClick={gen} className="via-btn via-btn-primary">{busy ? "Gerando…" : "Gerar"}</button>
+    <div className="via-card space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold flex items-center gap-2"><Sparkles size={18} className="text-[color:var(--via-blue)]"/> Fine-tuning</h2>
+        <span className="via-badge via-badge-blue text-[10px]">JSONL</span>
       </div>
-      <div className="space-y-1 max-h-32 overflow-y-auto">
+
+      <div className="space-y-2">
+        <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Provider de Treinamento</span>
+        <div className="flex gap-2 items-center">
+          <div className="via-choice-bar flex-1">
+            {(["openai", "gemini"] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setProvider(p)}
+                className={`via-choice-btn flex-1 py-1.5 capitalize ${provider === p ? "via-choice-btn-active" : ""}`}
+              >
+                {p === "openai" ? "OpenAI (.jsonl)" : "Gemini (.jsonl)"}
+              </button>
+            ))}
+          </div>
+          <button disabled={busy} onClick={gen} className="via-btn via-btn-primary shrink-0">
+            {busy ? "Gerando…" : "Gerar"}
+          </button>
+        </div>
+      </div>
+
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground border-t border-border pt-3">
+        Datasets de Fine-tuning ({(q.data ?? []).length})
+      </div>
+      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
         {(q.data ?? []).map((j: any) => (
-          <div key={j.id} className="flex items-center justify-between gap-2 text-xs border-b border-border py-1">
-            <div>{j.type === "finetune_openai" ? "OpenAI" : "Gemini"} · {new Date(j.created_at).toLocaleString("pt-BR")}</div>
-            {j.file_url && <a href={j.file_url} target="_blank" rel="noreferrer" className="via-btn via-btn-secondary text-xs"><Download size={10}/> .jsonl</a>}
+          <div key={j.id} className="flex items-center justify-between gap-2 text-xs rounded-lg border border-border/70 bg-card p-2">
+            <div className="text-foreground font-medium">
+              <span className="capitalize">{j.type === "finetune_openai" ? "OpenAI" : "Gemini"}</span>
+              <span className="text-[11px] text-muted-foreground ml-2">{new Date(j.created_at).toLocaleString("pt-BR")}</span>
+            </div>
+            <div className="flex gap-1 items-center">
+              {j.file_url && <a href={j.file_url} target="_blank" rel="noreferrer" className="via-btn via-btn-secondary via-btn-sm py-1 text-xs"><Download size={11}/> .jsonl</a>}
+              <button
+                disabled={deletingId === j.id}
+                className="via-btn via-btn-secondary via-btn-sm py-1 px-1.5 text-muted-foreground hover:text-rose-500 hover:border-rose-500/30 transition-colors"
+                onClick={() => removeJob(j.id)}
+                title="Excluir dataset"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
           </div>
         ))}
+        {(q.data ?? []).length === 0 && <div className="text-xs text-muted-foreground py-2">Nenhum dataset gerado ainda.</div>}
       </div>
     </div>
   );
-}
+}

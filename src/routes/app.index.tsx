@@ -18,6 +18,7 @@ type StatusCounts = {
   prompts: number;
   hasInstance: boolean;
   isConnected: boolean;
+  companyName?: string | null;
 };
 
 function DashboardHome() {
@@ -25,7 +26,7 @@ function DashboardHome() {
   const q = useQuery({
     queryKey: ["dashboard-counts"],
     queryFn: async (): Promise<StatusCounts> => {
-      const [convs, msgs, sellers, prompts, playbooks, inst] = await Promise.all([
+      const [convs, msgs, sellers, prompts, playbooks, inst, settings] = await Promise.all([
         supabase.from("conversations").select("id", { count: "exact", head: true }),
         supabase.from("messages").select("id", { count: "exact", head: true }),
         supabase.from("sellers").select("id", { count: "exact", head: true }).eq("active", true),
@@ -33,6 +34,7 @@ function DashboardHome() {
         // Playbooks (Tier 1) também contam como "versões de prompt" geradas.
         supabase.from("playbook_snapshots").select("id", { count: "exact", head: true }),
         getInstanceFn({}),
+        supabase.from("app_settings").select("company_name").eq("id", true).maybeSingle(),
       ]);
       return {
         conversations: convs.count ?? 0,
@@ -41,6 +43,7 @@ function DashboardHome() {
         prompts: (prompts.count ?? 0) + (playbooks.count ?? 0),
         hasInstance: !!inst,
         isConnected: inst?.status === "connected",
+        companyName: settings.data?.company_name ?? null,
       };
     },
     refetchInterval: 20000,
@@ -52,7 +55,7 @@ function DashboardHome() {
     <div className="space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="via-eyebrow">Painel</p>
+          <p className="via-eyebrow">{s?.companyName ? `${s.companyName} · Painel` : "Painel"}</p>
           <h1 className="mt-1 text-4xl">Bem-vindo ao Treinador de IAs de Vendas</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {s?.isConnected

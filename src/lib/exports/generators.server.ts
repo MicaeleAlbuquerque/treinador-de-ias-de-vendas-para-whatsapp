@@ -258,9 +258,14 @@ export async function buildFinetuneJsonl(snapshotId: string, provider: "openai_c
 // ========== Storage upload helper ==========
 export async function uploadExport(path: string, body: Uint8Array | string, contentType: string): Promise<string> {
   const buf = typeof body === "string" ? new TextEncoder().encode(body) : body;
-  const { error } = await supabaseAdmin.storage.from("exports").upload(path, buf, { contentType, upsert: true });
+  let { error } = await supabaseAdmin.storage.from("exports").upload(path, buf, { contentType, upsert: true });
+  if (error && error.message.toLowerCase().includes("not found")) {
+    await supabaseAdmin.storage.createBucket("exports", { public: false });
+    const retry = await supabaseAdmin.storage.from("exports").upload(path, buf, { contentType, upsert: true });
+    error = retry.error;
+  }
   if (error) throw new Error(error.message);
   const { data: signed, error: e2 } = await supabaseAdmin.storage.from("exports").createSignedUrl(path, 60 * 60 * 24 * 7);
   if (e2 || !signed) throw new Error(e2?.message ?? "signed url failed");
   return signed.signedUrl;
-}
+}

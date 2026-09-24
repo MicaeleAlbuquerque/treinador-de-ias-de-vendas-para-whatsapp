@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import logoLockupDark from "@/assets/brand/viverdeia-lockup-black.svg";
-import logoLockupLight from "@/assets/brand/viverdeia-lockup-white.svg";
+import { supabase } from "@/integrations/supabase/client";
+import { Logo } from "@/components/brand/Logo";
 import { useAuth, signOut } from "@/lib/auth-context";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -55,12 +55,63 @@ function AppShell() {
 function AppSidebar({ email }: { email?: string }) {
   const loc = useLocation();
   const navigate = useNavigate();
+
+  const brandQuery = useQuery({
+    queryKey: ["app-settings-branding"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("company_name, logo_url")
+        .eq("id", true)
+        .maybeSingle();
+      return data;
+    },
+    staleTime: 30000,
+  });
+
+  const companyName = brandQuery.data?.company_name?.trim();
+  const logoUrl = brandQuery.data?.logo_url?.trim();
+
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-border bg-card md:flex">
-      <div className="flex h-20 flex-col justify-center gap-1.5 border-b border-border px-6">
-        <img src={logoLockupDark} alt="Viver de IA" className="h-5 w-auto self-start dark:hidden" />
-        <img src={logoLockupLight} alt="Viver de IA" className="hidden h-5 w-auto self-start dark:block" />
-        <p className="via-label text-[9px] text-muted-foreground">Treinador de IAs de Vendas</p>
+      <div className="flex h-20 items-center gap-3 border-b border-border px-5">
+        {logoUrl ? (
+          <div className="h-10 w-10 shrink-0 rounded-lg overflow-hidden bg-background/80 border border-border flex items-center justify-center p-1">
+            <img
+              src={logoUrl}
+              alt={companyName ?? "Logo da empresa"}
+              className="h-full w-full object-contain"
+              onError={(e) => {
+                (e.currentTarget.parentElement as HTMLElement).style.display = "none";
+              }}
+            />
+          </div>
+        ) : companyName ? (
+          <div className="h-10 w-10 shrink-0 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm select-none">
+            {companyName.slice(0, 2).toUpperCase()}
+          </div>
+        ) : null}
+
+        {companyName ? (
+          <div className="min-w-0 flex-1">
+            <div
+              className="font-bold text-sm truncate text-foreground leading-tight"
+              title={companyName}
+            >
+              {companyName}
+            </div>
+            <p className="via-label text-[9px] text-muted-foreground mt-0.5 truncate">
+              Treinador de IAs de Vendas
+            </p>
+          </div>
+        ) : !logoUrl ? (
+          <div className="flex flex-col justify-center gap-1.5">
+            <Logo className="h-5 w-auto self-start" />
+            <p className="via-label text-[9px] text-muted-foreground">
+              Treinador de IAs de Vendas
+            </p>
+          </div>
+        ) : null}
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
         {NAV.map((item) => {

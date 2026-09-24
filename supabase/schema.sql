@@ -535,15 +535,17 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   _is_first BOOLEAN;
 BEGIN
-  -- Criar perfil público
-  INSERT INTO public.profiles (id, display_name)
+  -- Criar perfil público com fallback seguro
+  INSERT INTO public.profiles (id, display_name, role)
   VALUES (
     NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1))
+    COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(COALESCE(NEW.email, 'user'), '@', 1)),
+    COALESCE(NEW.raw_user_meta_data->>'role', 'user')
   )
   ON CONFLICT (id) DO NOTHING;
 
@@ -555,6 +557,10 @@ BEGIN
     ON CONFLICT (user_id, role) DO NOTHING;
   END IF;
 
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Garante que falhas no perfil nunca travem o salvamento de um novo usuário no auth.users
+  RAISE WARNING 'handle_new_user warning: %', SQLERRM;
   RETURN NEW;
 END;
 $$;
@@ -593,6 +599,28 @@ CREATE POLICY "Permitir escrita autenticada em mensagens" ON public.messages FOR
 
 CREATE POLICY "Permitir leitura autenticada em perfis" ON public.profiles FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Permitir atualizar proprio perfil" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
+CREATE POLICY "Permitir insercao em perfis" ON public.profiles FOR INSERT TO authenticated, anon, service_role WITH CHECK (true);
 
 CREATE POLICY "Permitir leitura em app_settings" ON public.app_settings FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Permitir update em app_settings" ON public.app_settings FOR ALL TO authenticated USING (true);
+
+CREATE POLICY "Permitir leitura autenticada em user_roles" ON public.user_roles FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Permitir insercao em user_roles" ON public.user_roles FOR INSERT TO authenticated, anon, service_role WITH CHECK (true);
+
+CREATE POLICY "Permitir leitura autenticada em invites" ON public.invites FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Permitir escrita autenticada em invites" ON public.invites FOR ALL TO authenticated USING (true);
+
+ALTER TABLE public.playbooks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Permitir leitura autenticada em playbooks" ON public.playbooks FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Permitir escrita autenticada em playbooks" ON public.playbooks FOR ALL TO authenticated USING (true);
+
+ALTER TABLE public.export_jobs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Permitir leitura autenticada em export_jobs" ON public.export_jobs FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Permitir escrita autenticada em export_jobs" ON public.export_jobs FOR ALL TO authenticated USING (true);
+
+ALTER TABLE public.prompt_versions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Permitir leitura autenticada em prompt_versions" ON public.prompt_versions FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Permitir escrita autenticada em prompt_versions" ON public.prompt_versions FOR ALL TO authenticated USING (true);
+
+
+

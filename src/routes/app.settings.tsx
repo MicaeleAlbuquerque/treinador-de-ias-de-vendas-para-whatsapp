@@ -424,6 +424,7 @@ function CompanySettings() {
     toast.success("Empresa atualizada.");
     qc.invalidateQueries({ queryKey: ["app-settings"] });
     qc.invalidateQueries({ queryKey: ["app-settings-full"] });
+    qc.invalidateQueries({ queryKey: ["app-settings-branding"] });
   }
 
   return (

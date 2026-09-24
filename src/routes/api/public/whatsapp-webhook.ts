@@ -41,13 +41,24 @@ function isGroupJid(jid: string | undefined | null) {
 
 function extractText(message: any): string {
   if (!message) return "";
+  const inner =
+    message.ephemeralMessage?.message ??
+    message.viewOnceMessage?.message ??
+    message.viewOnceMessageV2?.message ??
+    message.documentWithCaptionMessage?.message ??
+    message;
+
   return (
-    message.conversation ??
-    message.extendedTextMessage?.text ??
-    message.imageMessage?.caption ??
-    message.videoMessage?.caption ??
-    message.documentMessage?.caption ??
-    ""
+    inner.conversation ??
+    inner.extendedTextMessage?.text ??
+    inner.imageMessage?.caption ??
+    inner.videoMessage?.caption ??
+    inner.documentMessage?.caption ??
+    inner.interactiveResponseMessage?.body?.text ??
+    inner.buttonsResponseMessage?.selectedDisplayText ??
+    inner.templateButtonReplyMessage?.selectedDisplayText ??
+    inner.listResponseMessage?.title ??
+    (typeof message.body === "string" ? message.body : "")
   );
 }
 
@@ -129,6 +140,23 @@ async function handleMessagesUpsert(instanceId: string, instanceSellerId: string
 
     const text = extractText(message?.message ?? message);
     const mediaType = detectMediaType(message?.message ?? message);
+
+    // Se for texto mas não tem nenhum conteúdo real (stubs de criptografia, eventos Baileys, etc.), ignora
+    if (mediaType === "text" && !text.trim()) {
+      continue;
+    }
+
+    // Previne inserção duplicada se a mensagem já foi salva (re-entrega de webhook)
+    if (key?.id) {
+      const { data: existingMsg } = await supabaseAdmin
+        .from("messages")
+        .select("id")
+        .eq("conversation_id", conversationId)
+        .eq("external_msg_id", key.id)
+        .maybeSingle();
+      if (existingMsg) continue;
+    }
+
     const anon = text ? anonymizeText(text, whitelist) : { anonymized: "", replacements: [] };
     const ts = it.messageTimestamp
       ? new Date(Number(it.messageTimestamp) * 1000).toISOString()
