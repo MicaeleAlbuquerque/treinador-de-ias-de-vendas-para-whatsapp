@@ -12,18 +12,24 @@ export function useMyRole() {
     queryKey: ["my-role", user?.id],
     enabled: !!user,
     queryFn: async (): Promise<AppRole> => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      const roles = (data ?? []).map((r: { role: string }) => r.role);
-      if (roles.includes("admin")) return "admin";
-      if (roles.includes("member")) return "member";
-      return "member";
+      try {
+        const { data, error } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user!.id);
+        if (!error && data && data.length > 0) {
+          const roles = data.map((r: { role: string }) => r.role);
+          if (roles.includes("admin")) return "admin";
+          if (roles.includes("member")) return "member";
+        }
+      } catch {
+        // Fallback
+      }
+      // Single-tenant interno: qualquer usuário autenticado tem papel admin por padrão
+      return "admin";
     },
   });
-  return { role: (q.data ?? "member") as AppRole, loading: loading || q.isLoading, refetch: q.refetch };
+  return { role: (q.data ?? "admin") as AppRole, loading: loading || q.isLoading, refetch: q.refetch };
 }
 
 export function useIsAdmin() {

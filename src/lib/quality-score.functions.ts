@@ -34,11 +34,13 @@ export const scoreAllPendingQuality = createServerFn({ method: "POST" })
     let processed = 0;
     let failed = 0;
     let rateLimited = false;
+    const processedJobIds = new Set<string>();
 
     for (let i = 0; i < claimed.length; i++) {
       const jobId = claimed[i]!;
       try {
         await processQualityScoreJob(jobId);
+        processedJobIds.add(jobId);
         processed++;
         // Espaçamento entre requisições para respeitar os limites de requisições por minuto do Gemini (Free Tier)
         if (i < claimed.length - 1) {
@@ -53,6 +55,16 @@ export const scoreAllPendingQuality = createServerFn({ method: "POST" })
         }
         failed++;
       }
+    }
+
+    // Libera imediatamente qualquer job pré-reivindicado que não chegou a ser processado (ex: interrupção por 429)
+    const unprocessed = claimed.filter((id) => !processedJobIds.has(id));
+    if (unprocessed.length > 0) {
+      await supabaseAdmin
+        .from("quality_score_jobs")
+        .update({ status: "pending", locked_at: null, started_at: null })
+        .in("id", unprocessed)
+        .eq("status", "running");
     }
 
     return { enqueued, claimed: claimed.length, processed, failed, rateLimited };

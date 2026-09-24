@@ -5,7 +5,8 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { assignSellerToConversation, transcribeAudioMessageNow } from "@/lib/whatsapp.functions";
 import { tagConversation, reclassifyMessage } from "@/lib/analysis.functions";
-import { ChevronLeft, Check, X, Clock, UserCircle, ShieldCheck, RotateCcw, Mic } from "lucide-react";
+import { scoreQualityNow } from "@/lib/quality-score.functions";
+import { ChevronLeft, Check, X, Clock, UserCircle, ShieldCheck, RotateCcw, Mic, Brain } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/conversations/$id")({
@@ -34,9 +35,11 @@ function ConversationDetail() {
   const tagFn = useServerFn(tagConversation);
   const reclassifyFn = useServerFn(reclassifyMessage);
   const transcribeAudioFn = useServerFn(transcribeAudioMessageNow);
+  const scoreQualityFn = useServerFn(scoreQualityNow);
   const [assigning, setAssigning] = useState(false);
   const [wonValue, setWonValue] = useState<string>("");
   const [transcribingMsgId, setTranscribingMsgId] = useState<string | null>(null);
+  const [evaluatingQuality, setEvaluatingQuality] = useState(false);
 
   async function handleTranscribeAudio(messageId: string) {
     setTranscribingMsgId(messageId);
@@ -56,12 +59,26 @@ function ConversationDetail() {
     }
   }
 
+  async function handleEvaluateQuality() {
+    setEvaluatingQuality(true);
+    try {
+      const res = await scoreQualityFn({ data: { conversationId: id } });
+      toast.success(`Conversa avaliada com sucesso pela IA! Nota: ${res.scoreOverall}/100`);
+      qc.invalidateQueries({ queryKey: ["conversation", id] });
+      qc.invalidateQueries({ queryKey: ["messages", id] });
+    } catch (e) {
+      toast.error((e as Error).message || "Falha ao avaliar conversa com IA.");
+    } finally {
+      setEvaluatingQuality(false);
+    }
+  }
+
   const convQ = useQuery({
     queryKey: ["conversation", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("conversations")
-        .select("id, seller_id, lead_phone, lead_name_anon, source, outcome, outcome_value, auto_marked, last_msg_at, sellers ( id, name )")
+        .select("id, seller_id, lead_phone, lead_name_anon, source, outcome, outcome_value, auto_marked, last_msg_at, quality_score, quality_breakdown, sellers ( id, name )")
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -170,6 +187,17 @@ function ConversationDetail() {
             {conv.outcome === "won" && conv.outcome_value != null && (
               <span className="text-muted-foreground">Valor: R$ {Number(conv.outcome_value).toLocaleString("pt-BR")}</span>
             )}
+            {conv.quality_score != null && (
+              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 font-bold ${
+                conv.quality_score >= 75
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300"
+                  : conv.quality_score >= 50
+                  ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300"
+                  : "bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300"
+              }`}>
+                Nota IA: {conv.quality_score}/100
+              </span>
+            )}
             <span className="text-muted-foreground">Origem: {conv.source}</span>
             <span className="text-muted-foreground">Vendedor: {conv.sellers?.name ?? "— não atribuído"}</span>
             {conv.last_msg_at && (
@@ -205,6 +233,16 @@ function ConversationDetail() {
             <ShieldCheck size={14} /> Confirmar tagging
           </button>
         )}
+
+        <button
+          type="button"
+          disabled={evaluatingQuality}
+          onClick={handleEvaluateQuality}
+          className="via-btn via-btn-sm via-btn-primary inline-flex items-center gap-1.5"
+          title="Avalia a qualidade com IA, classifica etapas do funil e confirma papéis de vendedor e lead"
+        >
+          <Brain size={14} /> {evaluatingQuality ? "Avaliando…" : conv.quality_score != null ? `Reavaliar IA (${conv.quality_score}/100)` : "Avaliar & Classificar com IA"}
+        </button>
 
         {!conv.seller_id && (
           <div className="ml-auto flex items-center gap-2">

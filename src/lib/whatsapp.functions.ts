@@ -17,6 +17,7 @@ import {
 import { anonymizeText, buildSellerWhitelist, maskPhone, isValidPhone } from "./anonymize.server";
 import { parseWhatsAppExport } from "./whatsapp-parser";
 import { DEMO_SELLERS, DEMO_CONVERSATIONS } from "./demo-seed-data";
+import { analyzeConversation } from "./analyze.server";
 
 const PROJECT_BASE_URL =
   process.env.PUBLIC_BASE_URL ||
@@ -1217,6 +1218,11 @@ export const uploadWhatsAppExport = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     }
 
+    // Auto-analisa etapas e objeções da conversa importada em background imediato
+    analyzeConversation(conv.id).catch((e) =>
+      console.warn(`[uploadWhatsAppExport] Auto-analyze falhou para ${conv.id}:`, (e as Error).message)
+    );
+
     return { conversationId: conv.id, messageCount: messages.length, audioCount };
   });
 
@@ -1324,6 +1330,11 @@ export const uploadMultipleWhatsAppExports = createServerFn({ method: "POST" })
         const { error } = await supabaseAdmin.from("messages").insert(slice);
         if (error) throw new Error(error.message);
       }
+
+      // Auto-analisa etapas e objeções da conversa importada
+      analyzeConversation(conv.id).catch((e) =>
+        console.warn(`[uploadMultiple] Auto-analyze falhou para ${conv.id}:`, (e as Error).message)
+      );
 
       results.push({
         conversationId: conv.id,

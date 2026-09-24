@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { enqueueAnalysis } from "./analyze.server";
+import { enqueueAnalysis, analyzeConversation } from "./analyze.server";
 import { recalculateDna } from "./dna.server";
 
 const OUTCOMES = ["won", "lost", "in_progress", "unknown"] as const;
@@ -296,4 +296,52 @@ export const listDnaSnapshots = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(20);
     return data ?? [];
-  });
+  });
+
+export const autoClassifyAllStagesAndObjections = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d?: { limit?: number }) => z.object({ limit: z.number().optional() }).optional().parse(d))
+  .handler(async ({ data, context }) => {
+    if (!(await isAdmin(context.userId))) throw new Error("Apenas administradores.");
+    const limit = data?.limit ?? 20;
+
+    // Busca conversas que possuem mensagens de vendedor sem stage
+    const { data: unclassifiedMessages } = await supabaseAdmin
+      .from("messages")
+      .select("conversation_id")
+      .eq("sender_role", "seller")
+      .is("stage", null)
+      .limit(200);
+
+    const convIdsFromMsgs = [...new Set((unclassifiedMessages ?? []).map((m) => m.conversation_id))];
+
+    // Busca conversas não analisadas
+    const { data: pendingConvs } = await supabaseAdmin
+      .from("conversations")
+      .select("id")
+      .neq("source", "simulation")
+      .limit(limit);
+
+    const targetConvIds = [...new Set([...convIdsFromMsgs, ...(pendingConvs ?? []).map((c) => c.id)])].slice(0, limit);
+
+    let analyzed = 0;
+    for (const cId of targetConvIds) {
+      try {
+        await analyzeConversation(cId);
+        analyzed++;
+      } catch (err) {
+        console.warn(`[autoClassify] Falha ao analisar conversa ${cId}:`, (err as Error).message);
+      }
+    }
+
+    if (analyzed > 0) {
+      try {
+        await recalculateDna(context.userId);
+      } catch (recalcErr) {
+        console.warn("[autoClassify] Recalculate DNA skipped:", (recalcErr as Error).message);
+      }
+    }
+
+    return { analyzed, totalFound: targetConvIds.length };
+  });
+
