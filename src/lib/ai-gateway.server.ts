@@ -12,8 +12,16 @@ const OPENAI_BASE = "https://api.openai.com/v1";
 // Modelo OpenAI usado pra gerar os outputs (quality_score, playbook, DNA) quando
 // há BYOK. gpt-4o-mini: ótimo custo/qualidade pra análise de texto em PT-BR.
 const OPENAI_CHAT_MODEL = "gpt-4o-mini";
-const GEMINI_CHAT_MODEL = "google/gemini-2.5-flash";
-const GEMINI_DIRECT_MODEL = readEnvVar("GEMINI_MODEL") || "gemini-3.6-flash";
+const GEMINI_CHAT_MODEL = "google/gemini-3.6-flash";
+export const CANDIDATE_GEMINI_MODELS = [
+  "gemini-flash-lite-latest",
+  "gemini-3.5-flash-lite",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3-flash-preview",
+];
+
+const GEMINI_DIRECT_MODEL = CANDIDATE_GEMINI_MODELS[0]!;
 
 export type LlmProvider = "openai" | "google";
 
@@ -24,13 +32,9 @@ export type ResolvedProvider = {
   openaiKey: string | null;
 };
 
-// Lê a variável de process.env ou diretamente do arquivo .env como fallback
-// (garante que variáveis adicionadas após o início do servidor sejam lidas sem precisar reiniciar)
+// Lê a variável diretamente do arquivo .env primeiro (garante que chaves
+// atualizadas pelo usuário sejam lidas instantaneamente sem precisar reiniciar o servidor)
 function readEnvVar(name: string): string | null {
-  const val = process.env[name];
-  if (val && val.trim().length > 0) {
-    return val.trim();
-  }
   try {
     const envPath = path.resolve(process.cwd(), ".env");
     if (fs.existsSync(envPath)) {
@@ -47,6 +51,10 @@ function readEnvVar(name: string): string | null {
     }
   } catch {
     // fallback se não puder ler disco
+  }
+  const val = process.env[name];
+  if (val && val.trim().length > 0) {
+    return val.trim();
   }
   return null;
 }
@@ -147,77 +155,130 @@ async function callOpenAIChat(
   return data.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function callDirectGeminiChat(
   opts: { systemPrompt: string; userPrompt: string; responseFormat?: "text" | "json"; temperature?: number },
   key: string,
-): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_DIRECT_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
-  const body: Record<string, unknown> = {
-    system_instruction: {
-      parts: [{ text: opts.systemPrompt }],
-    },
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: opts.userPrompt }],
-      },
-    ],
-    generationConfig: {
-      temperature: opts.temperature ?? 0.2,
-      ...(opts.responseFormat === "json" ? { responseMimeType: "application/json" } : {}),
-    },
-  };
-
-  const maxRetries = 4;
+): Promise<{ text: string; model: string }> {
   let lastErrorMsg = "";
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(45000),
-      });
+  for (const model of CANDIDATE_GEMINI_MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    const body: Record<string, unknown> = {
+      system_instruction: {
+        parts: [{ text: opts.systemPrompt }],
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: opts.userPrompt }],
+        },
+      ],
+      generationConfig: {
+        temperature: opts.temperature ?? 0.2,
+        ...(opts.responseFormat === "json" ? { responseMimeType: "application/json" } : {}),
+      },
+    };
 
-      if (res.ok) {
-        const data = (await res.json()) as {
-          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-        };
-        return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-      }
-
-      const detail = await res.text();
-      let msg = `Google Gemini (${res.status}): ${detail.slice(0, 200)}`;
+    // Tenta até 2 vezes no mesmo modelo se for erro transitório de demanda (503)
+    for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const parsed = JSON.parse(detail);
-        if (parsed?.error?.message) {
-          msg = `Google Gemini (${res.status}): ${parsed.error.message}`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(12000),
+        });
+
+        if (res.ok) {
+          const data = (await res.json()) as {
+            candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+          };
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+          return { text, model };
         }
-      } catch {
-        // fallback
-      }
-      lastErrorMsg = msg;
 
-      // Se for 503 (alta demanda transitória do Google) ou 429, aguarda e tenta novamente
-      if ((res.status === 503 || res.status === 429) && attempt < maxRetries) {
-        const delayMs = attempt * 1800;
-        console.warn(`[ai] Gemini ${res.status} (tentativa ${attempt}/${maxRetries}), aguardando ${delayMs}ms antes de tentar novamente...`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        continue;
-      }
+        const detail = await res.text();
 
-      throw new Error(lastErrorMsg);
-    } catch (e: any) {
-      lastErrorMsg = e.message || String(e);
-      if (attempt < maxRetries && (lastErrorMsg.includes("503") || lastErrorMsg.includes("429") || lastErrorMsg.includes("timeout") || lastErrorMsg.includes("fetch failed"))) {
-        const delayMs = attempt * 1800;
-        console.warn(`[ai] Gemini falhou com: "${lastErrorMsg}" (tentativa ${attempt}/${maxRetries}), aguardando ${delayMs}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        continue;
+        let msg = `Google Gemini (${res.status}): ${detail.slice(0, 200)}`;
+        try {
+          const parsed = JSON.parse(detail);
+          if (parsed?.error?.message) {
+            msg = `Google Gemini (${res.status}): ${parsed.error.message}`;
+          }
+        } catch {
+          // fallback
+        }
+        lastErrorMsg = msg;
+
+        // Se for esgotamento de cota ou modelo 429
+        if (
+          detail.includes("You exceeded your current quota") ||
+          detail.includes("RESOURCE_EXHAUSTED") ||
+          (detail.toLowerCase().includes("quota") && res.status === 429)
+        ) {
+          lastErrorMsg = "Limite de cota da chave Google Gemini excedido (RESOURCE_EXHAUSTED). Verifique seu plano em https://ai.google.dev ou configure uma nova chave Gemini / OpenAI em Configurações.";
+          console.warn(`[ai] Gemini ${model} atingiu cota (429). Tentando próximo modelo com cota disponível...`);
+          break;
+        }
+
+        // Se for 404 (modelo inexistente ou descontinuado na chave), vai direto pro próximo sem retentar
+        if (res.status === 404) {
+          break;
+        }
+
+        // Se for 503 (alta demanda transitória)
+        if (res.status === 503) {
+          if (attempt === 1) {
+            console.warn(`[ai] Gemini ${model} retornou ${res.status}. Aguardando 800ms antes de retentar...`);
+            await sleep(800);
+            continue;
+          }
+          console.warn(`[ai] Gemini ${model} persistiu com status ${res.status}. Tentando fallback para próximo modelo...`);
+          await sleep(500);
+          break;
+        }
+
+        throw new Error(lastErrorMsg);
+      } catch (e: any) {
+        lastErrorMsg = e.message || String(e);
+        if (
+          lastErrorMsg.includes("429") ||
+          lastErrorMsg.includes("RESOURCE_EXHAUSTED") ||
+          lastErrorMsg.includes("Limite de cota") ||
+          lastErrorMsg.includes("503") ||
+          lastErrorMsg.includes("demand") ||
+          lastErrorMsg.includes("timeout")
+        ) {
+          if (attempt === 1 && !lastErrorMsg.includes("429") && !lastErrorMsg.includes("RESOURCE_EXHAUSTED")) {
+            await sleep(800);
+            continue;
+          }
+          await sleep(300);
+          break;
+        }
+        throw e;
       }
-      throw e;
     }
+  }
+
+  // Se todos os modelos falharem por 503 (alta demanda do Google)
+  if (lastErrorMsg.includes("503") || lastErrorMsg.toLowerCase().includes("high demand")) {
+    throw new Error(
+      "Google Gemini (503): Os servidores de IA do Google estão enfrentando um pico temporário de alta demanda. Aguarde cerca de 10 a 20 segundos e tente novamente."
+    );
+  }
+
+  // Se todos os modelos falharem por 429 (cota de requisições excedida)
+  if (
+    lastErrorMsg.includes("429") ||
+    lastErrorMsg.toLowerCase().includes("quota") ||
+    lastErrorMsg.includes("free_tier_requests")
+  ) {
+    throw new Error(
+      "Limite de requisições da chave Google Gemini atingido (cota excedida). Aguarde 60 segundos ou configure uma chave OpenAI / nova chave Gemini em Configurações."
+    );
   }
 
   throw new Error(lastErrorMsg);
@@ -257,7 +318,7 @@ async function callLovableAiChat(
   return data.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
-/** Chat unificado: prioriza OpenAI (BYOK), com Gemini direto ou Lovable AI como fallback.
+/** Chat unificado: prioriza OpenAI (BYOK), com Gemini direto (e multi-model fallback) ou Lovable AI como fallback.
  * Retorna o texto + o provider/model EFETIVAMENTE usado (após eventual fallback),
  * pra o caller registrar custo e persistir corretamente. */
 export async function chatCompletion(opts: {
@@ -280,12 +341,12 @@ export async function chatCompletion(opts: {
     }
   }
 
-  // Fallback 1: Direct Google Gemini API (GEMINI_API_KEY ou GOOGLE_API_KEY)
+  // Fallback 1: Direct Google Gemini API com fallback inteligente entre modelos
   const geminiKey = loadGeminiKey();
   if (geminiKey) {
     try {
-      const text = await callDirectGeminiChat(opts, geminiKey);
-      return { text, provider: "google", model: GEMINI_DIRECT_MODEL };
+      const { text, model } = await callDirectGeminiChat(opts, geminiKey);
+      return { text, provider: "google", model };
     } catch (e) {
       console.warn(`[ai] Gemini direto falhou: ${(e as Error).message}`);
       if (!lastError) lastError = e as Error;
@@ -411,7 +472,8 @@ export async function chatCompletionGemini(opts: {
 }): Promise<string> {
   const geminiKey = loadGeminiKey();
   if (geminiKey) {
-    return await callDirectGeminiChat(opts, geminiKey);
+    const res = await callDirectGeminiChat(opts, geminiKey);
+    return res.text;
   }
   const lovableKey = loadLovableKey();
   if (lovableKey) {

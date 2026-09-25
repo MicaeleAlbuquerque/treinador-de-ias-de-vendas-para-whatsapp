@@ -83,7 +83,7 @@ Padrões a EVITAR: ${lose.map((s) => `[${s.category}] ${String(s.script ?? "").s
   return { mode: "playbook", context };
 }
 
-export async function coachEvaluateMessage(messageId: string): Promise<{ skipped?: string; score?: number }> {
+export async function coachEvaluateMessage(messageId: string): Promise<{ skipped?: string; score?: number; errorDetail?: string }> {
   const { data: settings } = await supabaseAdmin
     .from("app_settings")
     .select("current_dna_snapshot_id, current_playbook_snapshot_id")
@@ -143,8 +143,10 @@ Avalie a mensagem contra essa base (tom, uso de scripts vencedores, ausência de
     text = out.text;
     provider = out.provider;
     model = out.model;
-  } catch {
-    return { skipped: "llm_error" };
+  } catch (err: any) {
+    const errorDetail = err?.message || String(err);
+    console.error(`[coach] Erro ao avaliar mensagem ${messageId}:`, errorDetail);
+    return { skipped: "llm_error", errorDetail };
   }
 
   await recordUsage({
@@ -157,15 +159,18 @@ Avalie a mensagem contra essa base (tom, uso de scripts vencedores, ausência de
   });
   const parsed = parseScore(text);
 
-  // Upsert por message_id (unique) — evita duplicata em corrida cron x backlog.
-  await supabaseAdmin.from("coach_evaluations").upsert({
+  // Salva a avaliação em coach_evaluations
+  const { error: insertErr } = await supabaseAdmin.from("coach_evaluations").insert({
     message_id: messageId,
     conversation_id: msg.conversation_id,
     dna_snapshot_id: baseline.mode === "dna" ? baseline.snapshotId : null,
     score: parsed.score,
     adherence_breakdown: parsed.breakdown as any,
     suggestion: parsed.suggestion,
-  }, { onConflict: "message_id", ignoreDuplicates: true });
+  });
+  if (insertErr) {
+    console.error("[coach] Erro ao gravar coach_evaluations no banco:", insertErr.message);
+  }
 
   // NÃO notifica por mensagem (gerava flood de centenas de avisos). Os desvios
   // já aparecem no painel "Últimas saídas do padrão" da tela Coach, lendo
@@ -178,6 +183,17 @@ Avalie a mensagem contra essa base (tom, uso de scripts vencedores, ausência de
 // Considera só mensagens com CONTEÚDO textual (text ou transcrição) — mídia/áudio
 // sem texto seria "skipped" e ficaria re-tentada a cada lote, travando o avanço.
 export async function processCoachQueue(limit = 20): Promise<{ processed: number; skipped: number; remaining: number }> {
+  const { data: settings } = await supabaseAdmin
+    .from("app_settings")
+    .select("current_dna_snapshot_id, current_playbook_snapshot_id")
+    .eq("id", true)
+    .maybeSingle();
+  const snapId = (settings as any)?.current_dna_snapshot_id as string | null;
+  const playbookId = (settings as any)?.current_playbook_snapshot_id as string | null;
+  if (!snapId && !playbookId) {
+    throw new Error("A Coach precisa de uma base de comparação. Gere um Playbook ou DNA primeiro na aba DNA.");
+  }
+
   const { data } = await supabaseAdmin
     .from("messages")
     .select("id, text, audio_transcript")
@@ -202,15 +218,35 @@ export async function processCoachQueue(limit = 20): Promise<{ processed: number
   const batch = todo.slice(0, limit);
   let processed = 0;
   let skipped = 0;
+  let failureReason: string | null = null;
   for (const id of batch) {
     try {
       const r = await coachEvaluateMessage(id);
-      if (r.score != null) processed++;
-      else skipped++;
-    } catch {
+      if (r.score != null) {
+        processed++;
+      } else {
+        skipped++;
+        if (r.skipped === "llm_error") {
+          failureReason = (r as any).errorDetail || "Falha ao consultar a API da IA. Verifique se a chave de IA está ativa e com cota disponível.";
+        } else if (r.skipped === "budget") {
+          failureReason = "Limite de orçamento de IA atingido no sistema.";
+        }
+      }
+    } catch (e: any) {
       skipped++;
+      failureReason = e.message;
+      // Se for erro crítico de cota, interrompe imediatamente o lote
+      if (failureReason && (failureReason.includes("RESOURCE_EXHAUSTED") || failureReason.includes("Limite de cota") || failureReason.toLowerCase().includes("quota"))) {
+        throw e;
+      }
     }
   }
+
+  // Se nada foi processado e todas falharam com erro da IA, propaga o erro para o frontend dar o aviso correto
+  if (processed === 0 && skipped > 0 && failureReason) {
+    throw new Error(failureReason);
+  }
+
   return { processed, skipped, remaining: Math.max(0, todo.length - batch.length) };
 }
 

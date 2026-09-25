@@ -24,7 +24,10 @@ import {
   KeyRound,
   Tag,
   BookOpen,
+  Lock,
+  ShieldAlert,
 } from "lucide-react";
+import { useMyRole } from "@/lib/user-role";
 import QRCode from "qrcode";
 import {
   Dialog,
@@ -73,15 +76,23 @@ export const Route = createFileRoute("/app/settings")({ component: SettingsPage 
 type Tab = "account" | "company" | "whatsapp" | "sellers" | "hours" | "ai" | "integracoes";
 
 function SettingsPage() {
+  const { role, loading: roleLoading } = useMyRole();
+  const isAdmin = role === "admin";
   const [tab, setTab] = useState<Tab>("whatsapp");
-  // Single-tenant interno: todas as abas sempre visíveis para qualquer usuário autenticado.
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "whatsapp", label: "WhatsApp" },
-    { id: "sellers", label: "Vendedores" },
-    { id: "hours", label: "Horário comercial" },
-    { id: "ai", label: "Conta da IA" },
-    { id: "integracoes", label: "Integrações" },
-    { id: "company", label: "Empresa" },
+
+  useEffect(() => {
+    if (!roleLoading && !isAdmin && tab !== "account") {
+      setTab("account");
+    }
+  }, [roleLoading, isAdmin, tab]);
+
+  const allTabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
+    { id: "whatsapp", label: "WhatsApp", adminOnly: true },
+    { id: "sellers", label: "Vendedores", adminOnly: true },
+    { id: "hours", label: "Horário comercial", adminOnly: true },
+    { id: "ai", label: "Conta da IA", adminOnly: true },
+    { id: "integracoes", label: "Integrações", adminOnly: true },
+    { id: "company", label: "Empresa", adminOnly: true },
     { id: "account", label: "Conta" },
   ];
 
@@ -92,20 +103,57 @@ function SettingsPage() {
         <h1 className="mt-1 text-3xl">Preferências</h1>
       </header>
       <div className="flex flex-wrap gap-2 border-b border-border">
-        {tabs.map((t) => (
-          <button key={t.id} type="button" onClick={() => setTab(t.id)}
-            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-b-2 ${tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`}>
-            {t.label}
-          </button>
-        ))}
+        {allTabs.map((t) => {
+          const isLocked = t.adminOnly && !isAdmin;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-b-2 flex items-center gap-1.5 transition-colors ${
+                tab === t.id
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              } ${isLocked ? "opacity-75" : ""}`}
+            >
+              <span>{t.label}</span>
+              {isLocked && (
+                <span title="Acesso restrito a administradores">
+                  <Lock size={12} className="text-amber-500" />
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
-      {tab === "account" && <AccountSettings />}
-      {tab === "company" && <CompanySettings />}
-      {tab === "whatsapp" && <WhatsAppSettings />}
-      {tab === "sellers" && <SellersSettings />}
-      {tab === "hours" && <BusinessHoursSettings />}
-      {tab === "ai" && <AIAccountSettings />}
-      {tab === "integracoes" && <IntegrationsSettings />}
+
+      {!isAdmin && tab !== "account" ? (
+        <div className="via-card py-10 text-center space-y-3">
+          <ShieldAlert size={40} className="text-amber-500 mx-auto" />
+          <h2 className="text-lg font-semibold">Acesso Restrito a Administradores</h2>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
+            As configurações de {allTabs.find((t) => t.id === tab)?.label.toLowerCase()} só podem ser
+            visualizadas e alteradas por administradores da instância.
+          </p>
+          <button
+            type="button"
+            onClick={() => setTab("account")}
+            className="via-btn via-btn-secondary via-btn-sm"
+          >
+            Ir para Configurações da Conta
+          </button>
+        </div>
+      ) : (
+        <>
+          {tab === "account" && <AccountSettings />}
+          {tab === "company" && <CompanySettings />}
+          {tab === "whatsapp" && <WhatsAppSettings />}
+          {tab === "sellers" && <SellersSettings />}
+          {tab === "hours" && <BusinessHoursSettings />}
+          {tab === "ai" && <AIAccountSettings />}
+          {tab === "integracoes" && <IntegrationsSettings />}
+        </>
+      )}
     </div>
   );
 }
@@ -354,14 +402,34 @@ function AccountSettings() {
     qc.invalidateQueries({ queryKey: ["my-profile", user.id] });
   }
 
+  const [sendingReset, setSendingReset] = useState(false);
+
   async function savePwd(e: FormEvent) {
     e.preventDefault();
+    if (!password || password.length < 6) {
+      toast.error("A nova senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
     setSavingPwd(true);
     const { error } = await supabase.auth.updateUser({ password });
     setSavingPwd(false);
     if (error) { toast.error(error.message); return; }
     setPassword("");
-    toast.success("Senha atualizada.");
+    toast.success("Senha atualizada com sucesso.");
+  }
+
+  async function sendResetLink() {
+    if (!user?.email) return;
+    setSendingReset(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+    setSendingReset(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`Link de redefinição enviado para ${user.email}`);
   }
 
   return (
@@ -376,10 +444,23 @@ function AccountSettings() {
       </form>
       <form onSubmit={savePwd} className="via-card space-y-4">
         <h3 className="text-lg">Mudar senha</h3>
+        <p className="text-xs text-muted-foreground">
+          Defina uma nova senha diretamente abaixo ou solicite um link de recuperação por e-mail.
+        </p>
         <Field label="Nova senha" type="password" value={password} onChange={setPassword} required autoComplete="new-password" />
-        <button type="submit" disabled={savingPwd} className="via-btn via-btn-primary">
-          {savingPwd ? "Salvando…" : "Atualizar senha"}
-        </button>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <button type="submit" disabled={savingPwd || !password} className="via-btn via-btn-primary">
+            {savingPwd ? "Salvando…" : "Atualizar senha"}
+          </button>
+          <button
+            type="button"
+            onClick={sendResetLink}
+            disabled={sendingReset}
+            className="via-btn via-btn-secondary"
+          >
+            {sendingReset ? "Enviando…" : "Enviar link por e-mail"}
+          </button>
+        </div>
       </form>
       <div className="via-card">
         <h3 className="text-lg">Sessão</h3>
@@ -425,6 +506,7 @@ function CompanySettings() {
     qc.invalidateQueries({ queryKey: ["app-settings"] });
     qc.invalidateQueries({ queryKey: ["app-settings-full"] });
     qc.invalidateQueries({ queryKey: ["app-settings-branding"] });
+    qc.invalidateQueries({ queryKey: ["app-settings-company"] });
   }
 
   return (
@@ -1492,7 +1574,7 @@ function AIAccountSettings() {
     <form onSubmit={save} className="via-card space-y-4">
       <h3 className="text-lg">Conta da IA</h3>
       <p className="text-xs text-muted-foreground">
-        Se o checkbox estiver desmarcado, o sistema usa automaticamente o <strong>Google Gemini (Gemini 2.5 Flash)</strong> configurado no seu arquivo <code>.env</code> (<code>GEMINI_API_KEY</code>).
+        Se o checkbox estiver desmarcado, o sistema usa automaticamente o <strong>Google Gemini (Gemini 3.6)</strong> configurado no seu arquivo <code>.env</code> (<code>GEMINI_API_KEY</code>).
         Ative a opção abaixo apenas se quiser usar a sua chave da OpenAI (<strong>gpt-4o-mini</strong> e Whisper).
       </p>
       <label className="flex items-center gap-2 text-sm">

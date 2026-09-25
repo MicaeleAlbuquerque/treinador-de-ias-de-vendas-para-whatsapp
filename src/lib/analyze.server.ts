@@ -30,15 +30,15 @@ function tokenize(text: string): string[] {
     .filter((t) => t && t.length >= 2 && !STOPWORDS.has(t));
 }
 
-type BizHours = { start: string; end: string; days: number[]; tz?: string };
+export type BizHours = { start: string; end: string; days: number[]; tz?: string };
 
-const DEFAULT_TZ = process.env.APP_TIMEZONE || "America/Sao_Paulo";
+export const DEFAULT_TZ = process.env.APP_TIMEZONE || "America/Sao_Paulo";
 
 /**
  * Retorna {year, month, day, hour, minute, weekday} no fuso especificado,
  * usando Intl.DateTimeFormat (sem libs). weekday: 0=Dom..6=Sáb.
  */
-function partsInTz(d: Date, tz: string) {
+export function partsInTz(d: Date, tz: string = DEFAULT_TZ) {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     year: "numeric", month: "2-digit", day: "2-digit",
@@ -56,33 +56,41 @@ function partsInTz(d: Date, tz: string) {
   };
 }
 
-function minutesRespectingBizHours(fromIso: string, toIso: string, bh: BizHours): number {
+export function minutesRespectingBizHours(fromIso: string, toIso: string, bh: BizHours): number {
   const tz = bh.tz || DEFAULT_TZ;
   const from = new Date(fromIso);
   const to = new Date(toIso);
   if (to <= from) return 0;
   const [sH, sM] = bh.start.split(":").map(Number);
   const [eH, eM] = bh.end.split(":").map(Number);
-  const startMin = sH! * 60 + sM!;
-  const endMin = eH! * 60 + eM!;
+  const startMin = (sH ?? 9) * 60 + (sM ?? 0);
+  const endMin = (eH ?? 18) * 60 + (eM ?? 0);
+  if (endMin <= startMin) return 0;
 
   let total = 0;
-  // Iteração minuto a minuto seria caro pra deltas grandes; iteramos por hora.
-  const cur = new Date(from);
-  while (cur < to) {
-    const next = new Date(cur.getTime() + 60 * 60 * 1000);
-    const chunkEnd = next < to ? next : to;
-    const p = partsInTz(cur, tz);
+  let cur = from.getTime();
+  const toMs = to.getTime();
+
+  while (cur < toMs) {
+    const p = partsInTz(new Date(cur), tz);
+    const minuteOfDay = p.hour * 60 + p.minute;
+    const minutesUntilMidnight = Math.max(1, 1440 - minuteOfDay);
+    const endOfThisDayOrTo = Math.min(cur + minutesUntilMidnight * 60_000, toMs);
+
     if (bh.days.includes(p.weekday)) {
-      const minuteOfDay = p.hour * 60 + p.minute;
-      if (minuteOfDay >= startMin && minuteOfDay < endMin) {
-        total += (chunkEnd.getTime() - cur.getTime()) / 60_000;
+      const elapsedOnThisDay = (endOfThisDayOrTo - cur) / 60_000;
+      const startOfInterval = minuteOfDay;
+      const endOfInterval = minuteOfDay + elapsedOnThisDay;
+      const overlapStart = Math.max(startOfInterval, startMin);
+      const overlapEnd = Math.min(endOfInterval, endMin);
+      if (overlapEnd > overlapStart) {
+        total += (overlapEnd - overlapStart);
       }
     }
-    cur.setTime(chunkEnd.getTime());
+    cur = endOfThisDayOrTo;
   }
-  if (total === 0) return Math.max(0, (to.getTime() - from.getTime()) / 60_000);
-  return total;
+
+  return Math.round(total * 100) / 100;
 }
 
 async function classifyStagesWithLLM(
@@ -121,7 +129,21 @@ async function classifyStagesWithLLM(
     return result;
   }
   let parsed: any = {};
-  try { parsed = JSON.parse(raw); } catch { return result; }
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    const cleaned = raw.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) {
+        try { parsed = JSON.parse(match[0]); } catch { return result; }
+      } else {
+        return result;
+      }
+    }
+  }
   const items = Array.isArray(parsed.items) ? parsed.items : [];
   for (const it of items) {
     const idx = Number(it.i);

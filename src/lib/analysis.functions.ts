@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { enqueueAnalysis } from "./analyze.server";
+import { enqueueAnalysis, analyzeConversation } from "./analyze.server";
 import { recalculateDna } from "./dna.server";
 
 const OUTCOMES = ["won", "lost", "in_progress", "unknown"] as const;
@@ -191,3 +191,157 @@ export const saveAnalysisSettings = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const getDnaSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    void context;
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("current_dna_snapshot_id, last_dna_snapshot_at, dna_min_won, dna_min_lost, dna_min_sellers, dna_individual_mode, dna_use_quality_score, dna_quality_min_good, dna_quality_max_bad")
+      .eq("id", true)
+      .maybeSingle();
+    return data ?? null;
+  });
+
+export const getDnaSnapshotDetails = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data?: { snapshotId?: string | null }) =>
+    z.object({ snapshotId: z.string().uuid().nullable().optional() }).optional().parse(data ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    void context;
+    let targetSnapId = data?.snapshotId;
+
+    if (!targetSnapId) {
+      const { data: settings } = await supabaseAdmin
+        .from("app_settings")
+        .select("current_dna_snapshot_id")
+        .eq("id", true)
+        .maybeSingle();
+      targetSnapId = settings?.current_dna_snapshot_id ?? null;
+    }
+
+    if (!targetSnapId) {
+      return {
+        snapshot: null,
+        scores: [],
+        objections: [],
+        antipatterns: [],
+      };
+    }
+
+    const { data: snap } = await supabaseAdmin
+      .from("dna_snapshots")
+      .select("id, created_at, total_conversations_analyzed, top_performer_seller_id")
+      .eq("id", targetSnapId)
+      .maybeSingle();
+
+    if (!snap) {
+      return {
+        snapshot: null,
+        scores: [],
+        objections: [],
+        antipatterns: [],
+      };
+    }
+
+    const { data: rawScores } = await supabaseAdmin
+      .from("seller_dna_scores")
+      .select("*")
+      .eq("snapshot_id", targetSnapId)
+      .order("score", { ascending: false });
+
+    const rows = rawScores ?? [];
+    const sellerIds = [...new Set(rows.map((r: any) => r.seller_id).filter(Boolean))];
+    const nameById = new Map<string, string>();
+    if (sellerIds.length > 0) {
+      const { data: ss } = await supabaseAdmin.from("sellers").select("id, name").in("id", sellerIds);
+      for (const s of ss ?? []) nameById.set(s.id, s.name);
+    }
+
+    const scores = rows.map((r: any) => ({
+      ...r,
+      seller_name: nameById.get(r.seller_id) ?? "—",
+    }));
+
+    const { data: objections } = await supabaseAdmin
+      .from("dna_objections")
+      .select("*")
+      .eq("snapshot_id", targetSnapId)
+      .order("win_rate", { ascending: false });
+
+    const { data: antipatterns } = await supabaseAdmin
+      .from("dna_antipatterns")
+      .select("*")
+      .eq("snapshot_id", targetSnapId)
+      .order("lift", { ascending: false })
+      .limit(50);
+
+    return {
+      snapshot: snap,
+      scores,
+      objections: objections ?? [],
+      antipatterns: antipatterns ?? [],
+    };
+  });
+
+export const listDnaSnapshots = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    void context;
+    const { data } = await supabaseAdmin
+      .from("dna_snapshots")
+      .select("id, created_at, total_conversations_analyzed")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    return data ?? [];
+  });
+
+export const autoClassifyAllStagesAndObjections = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d?: { limit?: number }) => z.object({ limit: z.number().optional() }).optional().parse(d))
+  .handler(async ({ data, context }) => {
+    if (!(await isAdmin(context.userId))) throw new Error("Apenas administradores.");
+    const limit = data?.limit ?? 20;
+
+    // Busca conversas que possuem mensagens de vendedor sem stage
+    const { data: unclassifiedMessages } = await supabaseAdmin
+      .from("messages")
+      .select("conversation_id")
+      .eq("sender_role", "seller")
+      .is("stage", null)
+      .limit(200);
+
+    const convIdsFromMsgs = [...new Set((unclassifiedMessages ?? []).map((m) => m.conversation_id))];
+
+    // Busca conversas não analisadas
+    const { data: pendingConvs } = await supabaseAdmin
+      .from("conversations")
+      .select("id")
+      .neq("source", "simulation")
+      .limit(limit);
+
+    const targetConvIds = [...new Set([...convIdsFromMsgs, ...(pendingConvs ?? []).map((c) => c.id)])].slice(0, limit);
+
+    let analyzed = 0;
+    for (const cId of targetConvIds) {
+      try {
+        await analyzeConversation(cId);
+        analyzed++;
+      } catch (err) {
+        console.warn(`[autoClassify] Falha ao analisar conversa ${cId}:`, (err as Error).message);
+      }
+    }
+
+    if (analyzed > 0) {
+      try {
+        await recalculateDna(context.userId);
+      } catch (recalcErr) {
+        console.warn("[autoClassify] Recalculate DNA skipped:", (recalcErr as Error).message);
+      }
+    }
+
+    return { analyzed, totalFound: targetConvIds.length };
+  });
+

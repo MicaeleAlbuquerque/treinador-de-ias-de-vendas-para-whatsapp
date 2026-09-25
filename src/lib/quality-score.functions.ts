@@ -33,16 +33,41 @@ export const scoreAllPendingQuality = createServerFn({ method: "POST" })
 
     let processed = 0;
     let failed = 0;
-    for (const jobId of claimed) {
+    let rateLimited = false;
+    const processedJobIds = new Set<string>();
+
+    for (let i = 0; i < claimed.length; i++) {
+      const jobId = claimed[i]!;
       try {
         await processQualityScoreJob(jobId);
+        processedJobIds.add(jobId);
         processed++;
-      } catch {
+        // Espaçamento entre requisições para respeitar os limites de requisições por minuto do Gemini (Free Tier)
+        if (i < claimed.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      } catch (e: any) {
+        const msg = String(e?.message || "");
+        if (msg.includes("429") || msg.includes("Quota exceeded") || msg.includes("rate-limits")) {
+          rateLimited = true;
+          // Não continua disparando o restante do lote se a quota por minuto estourou
+          break;
+        }
         failed++;
       }
     }
 
-    return { enqueued, claimed: claimed.length, processed, failed };
+    // Libera imediatamente qualquer job pré-reivindicado que não chegou a ser processado (ex: interrupção por 429)
+    const unprocessed = claimed.filter((id) => !processedJobIds.has(id));
+    if (unprocessed.length > 0) {
+      await supabaseAdmin
+        .from("quality_score_jobs")
+        .update({ status: "pending", locked_at: null, started_at: null })
+        .in("id", unprocessed)
+        .eq("status", "running");
+    }
+
+    return { enqueued, claimed: claimed.length, processed, failed, rateLimited };
   });
 
 export const getQualityScoreStats = createServerFn({ method: "GET" })

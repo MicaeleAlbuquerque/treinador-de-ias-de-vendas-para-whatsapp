@@ -3,17 +3,23 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { triggerDnaRecalc } from "@/lib/analysis.functions";
-import { setCurrentSnapshot } from "@/lib/analysis.functions";
+import {
+  triggerDnaRecalc,
+  setCurrentSnapshot,
+  getDnaSettings,
+  getDnaSnapshotDetails,
+  listDnaSnapshots,
+  autoClassifyAllStagesAndObjections,
+} from "@/lib/analysis.functions";
 import { useMyRole } from "@/lib/user-role";
 import { toast } from "sonner";
-import { Sparkles, Trophy, Brain, BookOpen, Copy, Check, ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { Sparkles, Trophy, Brain, BookOpen, Copy, Check, ChevronDown, ChevronRight, Pencil, Loader2, RefreshCw } from "lucide-react";
 import { scoreAllPendingQuality, getQualityScoreStats, saveDnaQualityConfig } from "@/lib/quality-score.functions";
 import { triggerPlaybookGenerate, getCurrentPlaybook, listPlaybookHistory, getPlaybookSnapshot, setActivePlaybook, savePlaybookEdit, generateFewShotExamples, recommendLlmModel } from "@/lib/playbook.functions";
 
 export const Route = createFileRoute("/app/dna")({ component: DnaPage });
 
-type Tab = "ranking" | "stages" | "objections" | "antipatterns" | "history";
+type Tab = "ranking" | "stages" | "objections" | "antipatterns";
 
 function DnaPage() {
   const qc = useQueryClient();
@@ -21,6 +27,9 @@ function DnaPage() {
   const isAdmin = role === "admin";
   const recalcFn = useServerFn(triggerDnaRecalc);
   const setSnapFn = useServerFn(setCurrentSnapshot);
+  const getDnaSettingsFn = useServerFn(getDnaSettings);
+  const getDnaSnapshotDetailsFn = useServerFn(getDnaSnapshotDetails);
+  const listDnaSnapshotsFn = useServerFn(listDnaSnapshots);
   const scoreQualityFn = useServerFn(scoreAllPendingQuality);
   const getQualityStatsFn = useServerFn(getQualityScoreStats);
   const saveQualityCfgFn = useServerFn(saveDnaQualityConfig);
@@ -30,6 +39,7 @@ function DnaPage() {
   const getPlaybookSnapshotFn = useServerFn(getPlaybookSnapshot);
   const setActivePlaybookFn = useServerFn(setActivePlaybook);
   const savePlaybookEditFn = useServerFn(savePlaybookEdit);
+  const autoClassifyFn = useServerFn(autoClassifyAllStagesAndObjections);
   // Versão de playbook em visualização (null = a ativa/atual).
   const [viewingSnapshotId, setViewingSnapshotId] = useState<string | null>(null);
 
@@ -38,8 +48,29 @@ function DnaPage() {
   const [recalculatingDna, setRecalculatingDna] = useState(false);
   const [evaluatingQuality, setEvaluatingQuality] = useState(false);
   const [togglingQuality, setTogglingQuality] = useState(false);
+  const [classifyingStages, setClassifyingStages] = useState(false);
   const [savingPlaybookEdit, setSavingPlaybookEdit] = useState(false);
   const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null);
+
+  async function runAutoClassify() {
+    setClassifyingStages(true);
+    try {
+      const res = await autoClassifyFn({ data: { limit: 30 } });
+      if (res.analyzed > 0) {
+        toast.success(`Pronto! ${res.analyzed} conversas tiveram suas etapas e objeções classificadas com IA.`);
+        qc.invalidateQueries({ queryKey: ["dna-snapshot-details"] });
+        qc.invalidateQueries({ queryKey: ["dna-settings"] });
+        qc.invalidateQueries({ queryKey: ["dna-snapshots-list"] });
+        qc.invalidateQueries({ queryKey: ["quality-stats"] });
+      } else {
+        toast.info("Todas as conversas já estão com as etapas e objeções analisadas.");
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setClassifyingStages(false);
+    }
+  }
 
   async function toggleUseQuality(next: boolean) {
     setTogglingQuality(true);
@@ -59,12 +90,7 @@ function DnaPage() {
 
   const settingsQ = useQuery({
     queryKey: ["dna-settings"],
-    queryFn: async () => {
-      const { data } = await supabase.from("app_settings")
-        .select("current_dna_snapshot_id, last_dna_snapshot_at, dna_min_won, dna_min_lost, dna_min_sellers, dna_individual_mode, dna_use_quality_score, dna_quality_min_good, dna_quality_max_bad")
-        .eq("id", true).maybeSingle();
-      return data;
-    },
+    queryFn: () => getDnaSettingsFn({}),
   });
   const qualityStatsQ = useQuery({
     queryKey: ["quality-stats"],
@@ -88,11 +114,11 @@ function DnaPage() {
     queryFn: () => getPlaybookSnapshotFn({ data: { snapshotId: viewingSnapshotId! } }),
     enabled: !!viewingSnapshotId,
   });
-  const activeSnapshotId = (playbookQ.data as any)?.id ?? null;
-  const displayedPlaybook = viewingSnapshotId ? viewedPlaybookQ.data : playbookQ.data;
+  const activeSnapshotId = playbookQ.data?.id ?? null;
+  const displayedPlaybook = viewingSnapshotId ? viewedPlaybookQ.data ?? null : playbookQ.data ?? null;
   const displayedLoading = viewingSnapshotId ? viewedPlaybookQ.isLoading : playbookQ.isLoading;
 
-  async function savePlaybookEditHandler(systemPrompt: string) {
+  async function savePlaybookEditHandler(text: string) {
     const base = viewingSnapshotId ?? activeSnapshotId;
     if (!base) {
       toast.error("Nenhuma versão base pra editar.");
@@ -100,8 +126,8 @@ function DnaPage() {
     }
     setSavingPlaybookEdit(true);
     try {
-      await savePlaybookEditFn({ data: { systemPrompt, baseSnapshotId: base } });
-      toast.success("Edição salva como nova versão.");
+      await savePlaybookEditFn({ data: { systemPrompt: text, baseSnapshotId: base } });
+      toast.success("Playbook editado e salvo!");
       setViewingSnapshotId(null);
       qc.invalidateQueries({ queryKey: ["playbook-current"] });
       qc.invalidateQueries({ queryKey: ["playbook-history"] });
@@ -116,7 +142,7 @@ function DnaPage() {
     setRestoringVersionId(snapshotId);
     try {
       await setActivePlaybookFn({ data: { snapshotId } });
-      toast.success("Versão restaurada como playbook ativo.");
+      toast.success("Versão restaurada como ativa!");
       setViewingSnapshotId(null);
       qc.invalidateQueries({ queryKey: ["playbook-current"] });
       qc.invalidateQueries({ queryKey: ["playbook-history"] });
@@ -150,13 +176,17 @@ function DnaPage() {
   async function runQualityBatch() {
     setEvaluatingQuality(true);
     try {
-      const r = await scoreQualityFn({ data: { batch: 10 } });
-      if (r.processed === 0 && r.enqueued === 0) {
+      const r = await scoreQualityFn({ data: { batch: 5 } });
+      if (r.rateLimited) {
+        toast.warning(
+          `Cota por minuto da IA atingida (${r.processed} avaliadas neste lote). Aguarde ~45 segundos para renovar e rode o próximo lote.`
+        );
+      } else if (r.processed === 0 && r.enqueued === 0) {
         toast.info("Todas as conversas elegíveis já foram avaliadas.");
       } else if (r.failed > 0) {
-        toast.warning(`Lote: ${r.processed} avaliadas, ${r.failed} falhas, ${r.enqueued} enfileiradas.`);
+        toast.warning(`Lote concluído: ${r.processed} avaliadas, ${r.failed} com falha temporária.`);
       } else {
-        toast.success(`Lote: ${r.processed} avaliadas. ${r.enqueued} pendentes na fila.`);
+        toast.success(`Lote concluído: ${r.processed} conversas avaliadas com sucesso.`);
       }
       qc.invalidateQueries({ queryKey: ["quality-stats"] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
@@ -166,58 +196,16 @@ function DnaPage() {
   }
   const snapId = settingsQ.data?.current_dna_snapshot_id ?? null;
 
-  const snapQ = useQuery({
-    queryKey: ["dna-snap", snapId],
+  const dnaDetailsQ = useQuery({
+    queryKey: ["dna-snapshot-details", snapId],
     enabled: !!snapId,
-    queryFn: async () => {
-      const { data } = await supabase.from("dna_snapshots")
-        .select("id, created_at, total_conversations_analyzed, top_performer_seller_id")
-        .eq("id", snapId!).single();
-      return data;
-    },
+    queryFn: () => getDnaSnapshotDetailsFn({ data: { snapshotId: snapId } }),
   });
-  const scoresQ = useQuery({
-    queryKey: ["dna-scores", snapId],
-    enabled: !!snapId,
-    queryFn: async () => {
-      const { data } = await supabase.from("seller_dna_scores")
-        .select("*").eq("snapshot_id", snapId!).order("score", { ascending: false });
-      const rows = data ?? [];
-      const sellerIds = [...new Set(rows.map((r: any) => r.seller_id).filter(Boolean))];
-      const nameById = new Map<string, string>();
-      if (sellerIds.length > 0) {
-        const { data: ss } = await supabase.from("sellers").select("id, name").in("id", sellerIds);
-        for (const s of ss ?? []) nameById.set(s.id, s.name);
-      }
-      return rows.map((r: any) => ({ ...r, seller_name: nameById.get(r.seller_id) ?? "—" }));
-    },
-  });
-  const objQ = useQuery({
-    queryKey: ["dna-obj", snapId],
-    enabled: !!snapId,
-    queryFn: async () => {
-      const { data } = await supabase.from("dna_objections")
-        .select("*").eq("snapshot_id", snapId!).order("win_rate", { ascending: false });
-      return data ?? [];
-    },
-  });
-  const antiQ = useQuery({
-    queryKey: ["dna-anti", snapId],
-    enabled: !!snapId,
-    queryFn: async () => {
-      const { data } = await supabase.from("dna_antipatterns")
-        .select("*").eq("snapshot_id", snapId!).order("lift", { ascending: false }).limit(30);
-      return data ?? [];
-    },
-  });
-  const histQ = useQuery({
-    queryKey: ["dna-hist"],
-    queryFn: async () => {
-      const { data } = await supabase.from("dna_snapshots")
-        .select("id, created_at, total_conversations_analyzed").order("created_at", { ascending: false }).limit(20);
-      return data ?? [];
-    },
-  });
+
+  const snapQ = { data: dnaDetailsQ.data?.snapshot };
+  const scoresQ = { data: dnaDetailsQ.data?.scores ?? [] };
+  const objQ = { data: dnaDetailsQ.data?.objections ?? [] };
+  const antiQ = { data: dnaDetailsQ.data?.antipatterns ?? [] };
 
   async function recalc() {
     setRecalculatingDna(true);
@@ -226,6 +214,8 @@ function DnaPage() {
       if (r?.ok) {
         toast.success(`DNA recalculado (${r.totalAnalyzed} conversas)`);
         qc.invalidateQueries({ queryKey: ["dna-settings"] });
+        qc.invalidateQueries({ queryKey: ["dna-snapshot-details"] });
+        qc.invalidateQueries({ queryKey: ["dna-snapshots-list"] });
       } else {
         const need = r?.need ?? { won: 0, lost: 0, sellers: 0 };
         const parts: string[] = [];
@@ -302,7 +292,6 @@ function DnaPage() {
     { id: "stages", label: "Etapas" },
     { id: "objections", label: "Objeções vencedoras" },
     { id: "antipatterns", label: "Antipadrão" },
-    { id: "history", label: "Histórico" },
   ];
   const topName = (scoresQ.data ?? []).find((s: any) => s.is_top_performer)?.seller_name ?? "—";
 
@@ -389,89 +378,151 @@ function DnaPage() {
       )}
 
       {tab === "stages" && (
-        <div className="via-card overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary text-xs uppercase text-muted-foreground"><tr>
-              <th className="px-3 py-2 text-left">Vendedor</th>
-              {["abertura","qualificacao","valor","objecao","fechamento"].map((s) => <th key={s} className="px-3 py-2 text-left">{s}</th>)}
-            </tr></thead>
-            <tbody>
-              {(scoresQ.data ?? []).map((s: any) => {
-                const dist = (s.stage_distribution as Record<string,number>) ?? {};
-                const total = Object.values(dist).reduce((a, b) => a + (b as number), 0) || 1;
-                return (
-                  <tr key={s.id} className="border-b border-border last:border-0">
-                    <td className="px-3 py-2">{s.seller_name}</td>
-                    {["abertura","qualificacao","valor","objecao","fechamento"].map((st) => {
-                      const pct = Math.round(((dist[st] ?? 0) / total) * 100);
-                      return <td key={st} className="px-3 py-2"><div className="rounded bg-blue-100 px-2 py-1 text-xs" style={{ opacity: 0.3 + pct/100*0.7 }}>{pct}%</div></td>;
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="space-y-4">
+          <div className="via-card flex flex-wrap items-center justify-between gap-3 bg-muted/30">
+            <div>
+              <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                <Brain size={16} className="text-[color:var(--via-blue)]" /> Classificação de Etapas do Atendimento
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                A IA analisa cada mensagem enviada pelo vendedor e classifica em qual etapa do funil ela se encaixa.
+              </p>
+            </div>
+            {isAdmin && (
+              <button
+                onClick={runAutoClassify}
+                disabled={classifyingStages}
+                className="via-btn via-btn-primary via-btn-sm inline-flex items-center gap-1.5"
+              >
+                {classifyingStages ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                {classifyingStages ? "Classificando com IA…" : "Classificar Etapas com IA"}
+              </button>
+            )}
+          </div>
+
+          <div className="via-card overflow-x-auto p-0">
+            <table className="w-full text-sm">
+              <thead className="bg-secondary text-xs uppercase text-muted-foreground"><tr>
+                <th className="px-3 py-2 text-left">Vendedor</th>
+                {["abertura","qualificacao","valor","objecao","fechamento"].map((s) => <th key={s} className="px-3 py-2 text-left capitalize">{s}</th>)}
+              </tr></thead>
+              <tbody>
+                {(scoresQ.data ?? []).map((s: any) => {
+                  const dist = (s.stage_distribution as Record<string,number>) ?? {};
+                  const total = Object.values(dist).reduce((a, b) => a + (b as number), 0);
+                  return (
+                    <tr key={s.id} className="border-b border-border last:border-0">
+                      <td className="px-3 py-2 font-medium">{s.seller_name}</td>
+                      {total === 0 ? (
+                        <td colSpan={5} className="px-3 py-2 text-xs text-muted-foreground italic">
+                          Etapas ainda não classificadas no histórico. Clique em "Classificar Etapas com IA" acima para processar.
+                        </td>
+                      ) : (
+                        ["abertura","qualificacao","valor","objecao","fechamento"].map((st) => {
+                          const pct = Math.round(((dist[st] ?? 0) / total) * 100);
+                          return (
+                            <td key={st} className="px-3 py-2">
+                              <div className="rounded bg-blue-100 dark:bg-blue-900/30 px-2 py-1 text-xs" style={{ opacity: 0.3 + pct/100*0.7 }}>
+                                {pct}%
+                              </div>
+                            </td>
+                          );
+                        })
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {tab === "objections" && (
-        <div className="space-y-3">
-          {(objQ.data ?? []).length === 0 && <div className="via-card text-sm text-muted-foreground">Sem objeções no snapshot.</div>}
-          {(objQ.data ?? []).map((o: any) => (
-            <div key={o.id} className="via-card text-sm">
-              <div className="text-xs uppercase text-muted-foreground">{o.category} · {Math.round((o.win_rate ?? 0) * 100)}% win · {o.sample_size} amostras</div>
-              <div className="mt-1">{o.seller_response}</div>
+        <div className="space-y-4">
+          <div className="via-card flex flex-wrap items-center justify-between gap-3 bg-muted/30">
+            <div>
+              <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                <Brain size={16} className="text-[color:var(--via-blue)]" /> Biblioteca de Objeções Vencedoras
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Identifica como seus melhores vendedores responderam com sucesso a objeções de preço, prazo, concorrência e autoridade.
+              </p>
             </div>
-          ))}
+            {isAdmin && (
+              <button
+                onClick={runAutoClassify}
+                disabled={classifyingStages}
+                className="via-btn via-btn-primary via-btn-sm inline-flex items-center gap-1.5"
+              >
+                {classifyingStages ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                {classifyingStages ? "Extraindo objeções…" : "Extrair Objeções com IA"}
+              </button>
+            )}
+          </div>
+
+          {(objQ.data ?? []).length === 0 ? (
+            <div className="via-card text-center py-8 space-y-2">
+              <Brain className="mx-auto text-muted-foreground" size={28} />
+              <p className="text-sm font-semibold">Nenhuma objeção extraída ainda no snapshot atual.</p>
+              <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                Clique em "Extrair Objeções com IA" acima para que o sistema analise as conversas e descubra as respostas vencedoras para cada objeção.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(objQ.data ?? []).map((o: any) => (
+                <div key={o.id} className="via-card text-sm">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                    <span className="font-bold uppercase text-[color:var(--via-blue)]">{o.category}</span>
+                    <span>{Math.round((o.win_rate ?? 0) * 100)}% de taxa de conversão · {o.sample_size} amostras</span>
+                  </div>
+                  <div className="mt-1 text-sm bg-muted/30 p-2.5 rounded-lg border border-border">"{o.seller_response}"</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {tab === "antipatterns" && (
-        <div className="via-card p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary text-xs uppercase text-muted-foreground"><tr>
-              <th className="px-3 py-2 text-left">N-grama</th><th className="px-3 py-2 text-left">Lift</th>
-              <th className="px-3 py-2 text-left">Freq. perdidas</th><th className="px-3 py-2 text-left">Freq. ganhas</th>
-            </tr></thead>
-            <tbody>
-              {(antiQ.data ?? []).map((a: any) => (
-                <tr key={a.id} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2 font-mono text-xs">{a.ngram}</td>
-                  <td className="px-3 py-2">{Number(a.lift).toFixed(2)}×</td>
-                  <td className="px-3 py-2">{(Number(a.lost_frequency) * 100).toFixed(2)}%</td>
-                  <td className="px-3 py-2">{(Number(a.won_frequency) * 100).toFixed(2)}%</td>
-                </tr>
-              ))}
-              {(antiQ.data ?? []).length === 0 && <tr><td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">Sem antipadrões detectados.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
+        <div className="space-y-4">
+          <div className="via-card bg-muted/30">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              <Brain size={16} className="text-red-500" /> Antipadrões Comerciais do Time
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Expressões e abordagens que aparecem com frequência desproporcional nas conversas <strong>perdidas</strong> em relação às ganhas (Lift alto).
+            </p>
+          </div>
 
-      {tab === "history" && (
-        <div className="via-card p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary text-xs uppercase text-muted-foreground"><tr>
-              <th className="px-3 py-2 text-left">Data</th><th className="px-3 py-2 text-left">Conversas</th><th className="px-3 py-2 text-left">Atual</th><th className="px-3 py-2 text-left">Ações</th>
-            </tr></thead>
-            <tbody>
-              {(histQ.data ?? []).map((s: any) => (
-                <tr key={s.id} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2">{new Date(s.created_at).toLocaleString("pt-BR")}</td>
-                  <td className="px-3 py-2">{s.total_conversations_analyzed}</td>
-                  <td className="px-3 py-2">{s.id === snapId ? "✓" : ""}</td>
-                  <td className="px-3 py-2">
-                    {isAdmin && s.id !== snapId && (
-                      <button className="via-btn via-btn-secondary text-xs" onClick={async () => {
-                        try { await setSnapFn({ data: { snapshotId: s.id } }); toast.success("Snapshot ativado"); qc.invalidateQueries({ queryKey: ["dna-settings"] }); }
-                        catch (e) { toast.error((e as Error).message); }
-                      }}>Rollback</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="via-card p-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-secondary text-xs uppercase text-muted-foreground"><tr>
+                <th className="px-3 py-2 text-left">Expressão Comercial</th>
+                <th className="px-3 py-2 text-left" title="Quantas vezes mais essa frase aparece em conversas perdidas do que ganhas">Lift (Impacto)</th>
+                <th className="px-3 py-2 text-left">Freq. nas Perdidas</th>
+                <th className="px-3 py-2 text-left">Freq. nas Ganhas</th>
+              </tr></thead>
+              <tbody>
+                {(antiQ.data ?? []).map((a: any) => (
+                  <tr key={a.id} className="border-b border-border last:border-0">
+                    <td className="px-3 py-2 font-mono text-xs font-semibold text-red-600 dark:text-red-400">"{a.ngram}"</td>
+                    <td className="px-3 py-2 font-bold">{Number(a.lift).toFixed(2)}×</td>
+                    <td className="px-3 py-2">{(Number(a.lost_frequency) * 100).toFixed(2)}%</td>
+                    <td className="px-3 py-2">{(Number(a.won_frequency) * 100).toFixed(2)}%</td>
+                  </tr>
+                ))}
+                {(antiQ.data ?? []).length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">
+                      Sem antipadrões nocivos detectados no snapshot atual.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -516,8 +567,8 @@ function QualityScorePanel({
     buttonLabel = "Tudo avaliado";
     buttonDisabled = true;
   } else {
-    buttonLabel = evaluating ? "Avaliando…" : `Avaliar próximas 10 (${remaining} restantes)`;
-    buttonTitle = "Avalia 10 conversas neste batch. Repita pra avançar.";
+    buttonLabel = evaluating ? "Avaliando…" : `Avaliar próximas (${remaining} restantes)`;
+    buttonTitle = "Avalia um lote de conversas via IA. Repita se houver mais conversas.";
   }
 
   return (
@@ -579,7 +630,17 @@ function QualityScorePanel({
         </div>
         <div className="rounded-lg border border-border bg-muted/30 p-3">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Na fila</div>
-          <div className="text-xl font-bold mt-1">{stats.pendingJobs}{stats.failedJobs > 0 ? <span className="text-xs ml-1 text-red-600">+{stats.failedJobs} erro</span> : null}</div>
+          <div className="text-xl font-bold mt-1">
+            {stats.pendingJobs}
+            {stats.failedJobs > 0 ? (
+              <span
+                className="text-xs ml-1.5 text-amber-600 dark:text-amber-400 font-normal"
+                title="Conversas que aguardam liberação da quota de requisições por minuto da IA."
+              >
+                ({stats.failedJobs} aguardando quota)
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
       {stats.total === 0 && (

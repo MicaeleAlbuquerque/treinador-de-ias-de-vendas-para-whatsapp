@@ -770,4 +770,4 @@ function FinetuneCard({ snapshotId }: { snapshotId: string }) {
       </div>
     </div>
   );
-}
+}

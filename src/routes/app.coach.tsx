@@ -4,9 +4,19 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMyRole } from "@/lib/user-role";
-import { setCoachThreshold, runCoachBacklog, getCoachStatus } from "@/lib/coach.functions";
+import {
+  setCoachThreshold,
+  runCoachBacklog,
+  getCoachStatus,
+  getCoachPerSellerMetrics,
+  getCoachDeviations,
+  getCoachNotifications,
+} from "@/lib/coach.functions";
+import { listSimulationHistory } from "@/lib/training-simulator.functions";
+import { SimulationArena } from "@/components/coach/SimulationArena";
+import { SimulationHistory } from "@/components/coach/SimulationHistory";
 import { toast } from "sonner";
-import { Activity, AlertTriangle, Trophy, BookOpen, Brain, Sparkles } from "lucide-react";
+import { Activity, AlertTriangle, Trophy, BookOpen, Brain, Sparkles, MessageSquare } from "lucide-react";
 
 export const Route = createFileRoute("/app/coach")({ component: CoachPage });
 
@@ -23,6 +33,9 @@ function CoachPage() {
   const setThr = useServerFn(setCoachThreshold);
   const runBacklogFn = useServerFn(runCoachBacklog);
   const getStatusFn = useServerFn(getCoachStatus);
+  const getPerSellerFn = useServerFn(getCoachPerSellerMetrics);
+  const getDeviationsFn = useServerFn(getCoachDeviations);
+  const getNotificationsFn = useServerFn(getCoachNotifications);
   const [editingThr, setEditingThr] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   // Progresso ao vivo da avaliação retroativa (loop de lotes no front).
@@ -53,11 +66,10 @@ function CoachPage() {
     try {
       // Mostra a barra já na largada (antes do 1º lote retornar).
       setProgress({ done: 0, total: statusQ.data?.pending ?? 1 });
-      // Loop de lotes: avalia em sequência atualizando a barra, até esgotar,
-      // bater no cap (processed=0) ou o usuário clicar "Parar". Lote pequeno (8)
-      // pra a barra andar com frequência.
+      // Loop de lotes: avalia em sequência de 3 em 3 para que cada requisição termine rapidamente
+      // e evite timeout no proxy de rede, atualizando a barra continuamente.
       while (!stopRef.current) {
-        const r = await runBacklogFn({ data: { batch: 8 } });
+        const r = await runBacklogFn({ data: { batch: 3 } });
         doneThisRun += r.processed;
         if (first) {
           totalToDo = doneThisRun + r.remaining;
@@ -67,17 +79,25 @@ function CoachPage() {
         qc.invalidateQueries({ queryKey: ["coach-status"] });
         qc.invalidateQueries({ queryKey: ["coach-per-seller"] });
         qc.invalidateQueries({ queryKey: ["coach-deviations"] });
+        qc.invalidateQueries({ queryKey: ["coach-notifs"] });
+
+        // Se esgotou ou se o lote não conseguiu processar nada
         if (r.remaining === 0 || r.processed === 0) break;
       }
       if (doneThisRun === 0) {
-        toast.info("Nenhuma mensagem nova pra avaliar.");
+        toast.info("Nenhuma mensagem avaliada nesta rodada. Verifique se a sua chave de IA possui cota disponível.");
       } else if (stopRef.current) {
         toast.success(`Avaliação pausada. ${doneThisRun} mensagens avaliadas nesta rodada.`);
       } else {
         toast.success(`Pronto! ${doneThisRun} mensagens avaliadas.`);
       }
     } catch (e) {
-      toast.error((e as Error).message);
+      const msg = (e as Error).message || "";
+      if (msg.includes("<!doctype html>") || msg.includes("This page didn't load") || msg.includes("504") || msg.includes("502")) {
+        toast.error("Tempo limite excedido na resposta do servidor. A IA demorou para responder ou a cota da chave de IA está esgotada.");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setBusy(false);
       setProgress(null);
@@ -96,47 +116,18 @@ function CoachPage() {
   });
   const threshold = (settingsQ.data as any)?.coach_alert_threshold ?? 60;
 
-  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-
   const perSellerQ = useQuery({
     queryKey: ["coach-per-seller"],
     queryFn: async () => {
-      // Get evaluations + messages + conversations + sellers
-      const { data: evals } = await supabase
-        .from("coach_evaluations")
-        .select("score, message_id, conversation_id, created_at")
-        .gte("created_at", sevenDaysAgo)
-        .limit(2000);
-      const convIds = [...new Set((evals ?? []).map((e) => e.conversation_id))];
-      if (!convIds.length) return [] as any[];
-      const { data: convs } = await supabase
-        .from("conversations").select("id, seller_id, sellers ( id, name )").in("id", convIds);
-      const convToSeller = new Map<string, { id: string; name: string } | null>();
-      for (const c of (convs ?? []) as any[]) convToSeller.set(c.id, c.sellers ?? null);
-      const agg = new Map<string, { name: string; n: number; total: number }>();
-      for (const e of evals ?? []) {
-        const s = convToSeller.get(e.conversation_id);
-        const key = s?.id ?? "unassigned";
-        const name = s?.name ?? "— não atribuído";
-        const cur = agg.get(key) ?? { name, n: 0, total: 0 };
-        cur.n++; cur.total += Number(e.score);
-        agg.set(key, cur);
-      }
-      return [...agg.entries()]
-        .map(([id, v]) => ({ id, name: v.name, count: v.n, avg: v.total / v.n }))
-        .sort((a, b) => b.avg - a.avg);
+      const data = await getPerSellerFn({});
+      return data ?? [];
     },
   });
 
   const deviationsQ = useQuery({
-    queryKey: ["coach-deviations"],
+    queryKey: ["coach-deviations", threshold],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("coach_evaluations")
-        .select("id, score, suggestion, conversation_id, message_id, created_at")
-        .lt("score", threshold)
-        .order("created_at", { ascending: false })
-        .limit(20);
+      const data = await getDeviationsFn({});
       return data ?? [];
     },
   });
@@ -144,12 +135,7 @@ function CoachPage() {
   const notifsQ = useQuery({
     queryKey: ["coach-notifs"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("notifications")
-        .select("id, title, body, payload, created_at")
-        .eq("type", "coach_deviation")
-        .order("created_at", { ascending: false })
-        .limit(20);
+      const data = await getNotificationsFn({});
       return data ?? [];
     },
   });
@@ -167,12 +153,29 @@ function CoachPage() {
     }
   }
 
+  type CoachTab = "arena" | "metrics" | "history";
+  const [activeTab, setActiveTab] = useState<CoachTab>("arena");
+  const listHistoryFn = useServerFn(listSimulationHistory);
+
+  const historyQ = useQuery({
+    queryKey: ["simulation-history"],
+    queryFn: () => listHistoryFn({}),
+  });
+
+  const sellersActiveQ = useQuery({
+    queryKey: ["sellers-active-coach"],
+    queryFn: async () => {
+      const { data } = await supabase.from("sellers").select("id, name").eq("active", true).order("name");
+      return data ?? [];
+    },
+  });
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl flex items-center gap-2"><Activity size={26} /> Coach mode</h1>
-          <p className="text-sm text-muted-foreground">Mede se cada mensagem do vendedor segue o padrão de excelência da operação.</p>
+          <p className="text-sm text-muted-foreground">Treinamento prático de vendas com IA e acompanhamento da aderência do time ao Playbook.</p>
         </div>
         <div className="text-sm text-muted-foreground">
           Base:{" "}
@@ -202,6 +205,68 @@ function CoachPage() {
           )}
         </div>
       </header>
+
+      {/* Abas Superiores do Coach */}
+      <div className="flex border-b border-border gap-2 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setActiveTab("arena")}
+          className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === "arena"
+              ? "border-[color:var(--via-blue)] text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Brain size={16} className="text-[color:var(--via-blue)]" /> Arena de Treinamento (Roleplay IA)
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("metrics")}
+          className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === "metrics"
+              ? "border-[color:var(--via-blue)] text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Activity size={16} /> Aderência & Métricas do Time
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("history")}
+          className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === "history"
+              ? "border-[color:var(--via-blue)] text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Trophy size={16} className="text-amber-500" /> Histórico de Simulações
+          {(historyQ.data?.length ?? 0) > 0 && (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold">
+              {historyQ.data?.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === "arena" && (
+        <SimulationArena
+          sellers={sellersActiveQ.data ?? []}
+          onFinishedSession={() => {
+            qc.invalidateQueries({ queryKey: ["simulation-history"] });
+          }}
+        />
+      )}
+
+      {activeTab === "history" && (
+        <SimulationHistory
+          items={historyQ.data ?? []}
+          isLoading={historyQ.isLoading}
+          onNewSessionClick={() => setActiveTab("arena")}
+        />
+      )}
+
+      {activeTab === "metrics" && (
+        <div className="space-y-6">
 
       {/* Painel de status: base ativa, progresso de avaliação, ação retroativa */}
       {statusQ.data?.baseMode === "none" ? (
@@ -367,6 +432,8 @@ function CoachPage() {
           </ul>
         )}
       </section>
+        </div>
+      )}
     </div>
   );
 }

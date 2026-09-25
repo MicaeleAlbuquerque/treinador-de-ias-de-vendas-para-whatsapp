@@ -22,9 +22,17 @@ const RUBRIC = [
 
 const SYSTEM_PROMPT = `Você é um especialista sênior em vendas consultivas via WhatsApp em português brasileiro.
 
-Avalia QUALIDADE DE ATENDIMENTO do VENDEDOR (não do lead) em uma conversa, independente do desfecho.
+Sua missão tem 3 objetivos nesta conversa:
+1. Avaliar a QUALIDADE DE ATENDIMENTO do VENDEDOR (0 a 10 em cada critério).
+2. Confirmar se os papéis declarados nas mensagens estão corretos ou invertidos (roles_inverted: true se quem foi marcado como LEAD na verdade for o VENDEDOR, e vice-versa).
+3. Classificar as mensagens do vendedor nas ETAPAS DO FUNIL DE VENDAS:
+   - "abertura": saudação, acolhimento, conexão inicial.
+   - "qualificacao": diagnóstico, perguntas sobre dores, perfil, orçamento, necessidades.
+   - "valor": apresentação da solução, benefícios concretos, proposta de valor.
+   - "objecao": contorno de dúvidas, preço, desconfiança, concorrente.
+   - "fechamento": chamada para ação, envio de link, agendamento de call, fechamento do pedido.
 
-Critérios (cada um 0 a 10):
+Critérios de qualidade (cada um 0 a 10):
 ${RUBRIC.map((r) => `- ${r.key} (peso ${r.weight}): ${r.label}`).join("\n")}
 
 Regras importantes:
@@ -38,7 +46,11 @@ Devolva APENAS um JSON estrito assim:
   "scores": { "abertura": 0-10, "descoberta": 0-10, "escuta": 0-10, "valor": 0-10, "objecao": 0-10, "ritmo": 0-10, "fechamento": 0-10, "tom": 0-10, "personalizacao": 0-10 },
   "highlights": ["3-5 bullets curtos do que o vendedor fez bem"],
   "gaps": ["3-5 bullets curtos do que ficou faltando ou foi mal"],
-  "summary": "1 frase de 1-2 linhas resumindo o atendimento"
+  "summary": "1 frase de 1-2 linhas resumindo o atendimento",
+  "roles_inverted": false,
+  "stages": [
+    { "index": 0, "stage": "abertura" }
+  ]
 }`;
 
 type ScoreResponse = {
@@ -46,6 +58,8 @@ type ScoreResponse = {
   highlights?: string[];
   gaps?: string[];
   summary?: string;
+  roles_inverted?: boolean;
+  stages?: Array<{ index: number; stage: string }>;
 };
 
 function computeOverall(scores: Record<string, number>): number {
@@ -63,11 +77,22 @@ function computeOverall(scores: Record<string, number>): number {
 }
 
 function formatTranscript(messages: Array<{ sender_role: string; text: string | null; audio_transcript: string | null; ts: string }>): string {
-  return messages
-    .map((m) => {
+  // Se a conversa for muito longa (> 80 msgs), foca no início (abertura/descoberta) e final (objeção/fechamento)
+  let msgsToFormat = messages;
+  let omitted = 0;
+  if (messages.length > 80) {
+    const head = messages.slice(0, 30);
+    const tail = messages.slice(-50);
+    omitted = messages.length - 80;
+    msgsToFormat = [...head, { sender_role: "system", text: `[... ${omitted} mensagens intermediárias resumidas ...]`, audio_transcript: null, ts: "" }, ...tail];
+  }
+
+  return msgsToFormat
+    .map((m, idx) => {
+      if (m.sender_role === "system") return m.text!;
       const who = m.sender_role === "seller" ? "VENDEDOR" : "LEAD";
-      const body = (m.text ?? m.audio_transcript ?? "[mídia]").slice(0, 800);
-      return `[${who}] ${body}`;
+      const body = (m.text ?? m.audio_transcript ?? "[mídia]").slice(0, 600);
+      return `[#${idx}][${who}] ${body}`;
     })
     .join("\n");
 }
@@ -87,7 +112,7 @@ export async function scoreConversationQuality(conversationId: string): Promise<
 
   const { data: messages } = await supabaseAdmin
     .from("messages")
-    .select("sender_role, text, audio_transcript, ts")
+    .select("id, sender_role, text, audio_transcript, ts")
     .eq("conversation_id", conversationId)
     .order("ts", { ascending: true })
     .limit(300);
@@ -139,8 +164,18 @@ export async function scoreConversationQuality(conversationId: string): Promise<
       parsed = JSON.parse(match[0]) as ScoreResponse;
     }
   }
+
+  // Suporte tanto para {"scores": {...}} quanto para rubricas diretamente na raiz {"abertura": 8, ...}
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Resposta IA inválida.");
+  }
   if (!parsed.scores || typeof parsed.scores !== "object") {
-    throw new Error("Resposta IA sem campo 'scores'.");
+    if (typeof (parsed as any).abertura === "number") {
+      const { highlights, gaps, summary, ...scoresOnly } = parsed as any;
+      parsed = { scores: scoresOnly, highlights, gaps, summary };
+    } else {
+      throw new Error("Resposta IA sem campo 'scores'.");
+    }
   }
 
   const overall = computeOverall(parsed.scores);
@@ -153,6 +188,8 @@ export async function scoreAndPersistQuality(conversationId: string): Promise<{
   try {
     const result = await scoreConversationQuality(conversationId);
     if (!result) return null;
+
+    // Atualiza a conversa com notas e resumo
     await supabaseAdmin
       .from("conversations")
       .update({
@@ -161,8 +198,49 @@ export async function scoreAndPersistQuality(conversationId: string): Promise<{
         quality_evaluated_at: new Date().toISOString(),
         quality_model: result.model,
         quality_provider: result.provider,
+        analysis_status: "done",
       })
       .eq("id", conversationId);
+
+    // Busca mensagens da conversa para sincronizar papéis e etapas do funil identificados
+    const { data: dbMsgs } = await supabaseAdmin
+      .from("messages")
+      .select("id, sender_role, stage, stage_manual")
+      .eq("conversation_id", conversationId)
+      .order("ts", { ascending: true })
+      .limit(300);
+
+    const msgsList = dbMsgs ?? [];
+
+    // 1. Inverte papéis caso a IA tenha detectado que estavam trocados
+    if (result.breakdown.roles_inverted === true && msgsList.length > 0) {
+      for (const m of msgsList) {
+        if (m.sender_role === "seller" || m.sender_role === "lead") {
+          const newRole = m.sender_role === "seller" ? "lead" : "seller";
+          await supabaseAdmin
+            .from("messages")
+            .update({ sender_role: newRole })
+            .eq("id", m.id);
+        }
+      }
+    }
+
+    // 2. Classifica as etapas do funil nas mensagens do vendedor
+    if (Array.isArray(result.breakdown.stages) && result.breakdown.stages.length > 0) {
+      for (const stg of result.breakdown.stages) {
+        const target = msgsList[stg.index];
+        if (target && !target.stage_manual && ["abertura", "qualificacao", "valor", "objecao", "fechamento"].includes(stg.stage)) {
+          await supabaseAdmin
+            .from("messages")
+            .update({
+              stage: stg.stage as any,
+              stage_confidence: 0.9,
+            })
+            .eq("id", target.id);
+        }
+      }
+    }
+
     return { scoreOverall: result.scoreOverall };
   } catch (e) {
     if (e instanceof LlmCapHitError) throw e;
@@ -192,18 +270,18 @@ export async function processQualityScoreJob(jobId: string): Promise<void> {
       .eq("id", jobId);
   } catch (e) {
     const msg = (e as Error).message;
-    if (e instanceof LlmCapHitError) {
-      // Re-enfileira: volta pra pending pra retomar amanhã.
+    if (e instanceof LlmCapHitError || msg.includes("429") || msg.includes("Quota exceeded") || msg.includes("rate-limits")) {
+      // Re-enfileira: volta pra pending pra retomar assim que a quota de minuto liberar
       await supabaseAdmin
         .from("quality_score_jobs")
         .update({
           status: "pending",
           locked_at: null,
-          error_text: msg.slice(0, 500),
+          error_text: "Aguardando quota da IA (rate limit transitório 429)",
           attempt_count: (job.attempt_count ?? 0) + 1,
         })
         .eq("id", jobId);
-      return;
+      throw e;
     }
     await supabaseAdmin
       .from("quality_score_jobs")
@@ -214,6 +292,7 @@ export async function processQualityScoreJob(jobId: string): Promise<void> {
         attempt_count: (job.attempt_count ?? 0) + 1,
       })
       .eq("id", jobId);
+    throw e;
   }
 }
 
@@ -288,13 +367,13 @@ export async function claimQualityScoreJobs(batchSize = 10): Promise<string[]> {
     // Falha do RPC (ex: bug de array literal no Postgres)
   }
 
-  // 2. Libera órfãos que ficaram travados há mais de 5 minutos
-  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  // 2. Libera órfãos que ficaram travados há mais de 2 minutos ou sem lock timestamp
+  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
   await supabaseAdmin
     .from("quality_score_jobs")
-    .update({ status: "pending", locked_at: null })
+    .update({ status: "pending", locked_at: null, started_at: null })
     .eq("status", "running")
-    .lt("locked_at", fiveMinutesAgo);
+    .or(`locked_at.lt.${twoMinutesAgo},locked_at.is.null`);
 
   // 3. Busca candidatos pendentes
   const { data: candidates } = await supabaseAdmin

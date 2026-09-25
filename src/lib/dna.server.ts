@@ -3,7 +3,11 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const STOPWORDS = new Set([
-  "a","o","as","os","de","da","do","das","dos","e","em","na","no","nas","nos","um","uma","uns","umas","para","pra","por","com","sem","ao","que","se","ou","é","ser","sou","seu","sua","seus","suas","te","ti","tu","me","mim","você","voce","vc","eu","nós","nos","ele","ela","eles","elas","isso","isto","aqui","ali","já","ja","mas","como","muito","mais","menos","tá","ta","tô","to","sim","não","nao","oi","ola","olá","ok","valeu","obrigado","obrigada","pra","pro","essa","esse","isso","aquilo","quando","onde","quem","qual","quais","tem","tinha","será","vai","vou","fui","ir","fazer","faz","fiz","só","só","aí","então",
+  "a","o","as","os","de","da","do","das","dos","e","em","na","no","nas","nos","um","uma","uns","umas","para","pra","por","com","sem","ao","que","se","ou","é","ser","sou","seu","sua","seus","suas","te","ti","tu","me","mim","você","voce","vc","eu","nós","nos","ele","ela","eles","elas","isso","isto","aqui","ali","já","ja","mas","como","muito","mais","menos","tá","ta","tô","to","sim","não","nao","oi","ola","olá","ok","valeu","obrigado","obrigada","pra","pro","essa","esse","isso","aquilo","quando","onde","quem","qual","quais","tem","tinha","será","vai","vou","fui","ir","fazer","faz","fiz","só","aí","então","entao",
+  // Saudações e formalidades comuns que não são antipadrões de vendas
+  "bom","boa","dia","tarde","noite","tudo","bem","beleza","blz","legal","show","tranquilo","perfeito","claro","entendi","certo","combinado","amigo","amiga","querido","querida","favor","obg","vlw","gente","pessoal","opa","fala",
+  // Verbos auxiliares e palavras funcionais sem sentido isolado
+  "ter","estar","dar","pode","podemos","consigo","consegue","consigo","vamos","bora","mandar","enviar","olha","ver","falar","conversar","sobre","algo","coisa","tipo","assim","agora","depois","ainda","sempre","nunca",
 ]);
 
 function tokenize(text: string): string[] {
@@ -33,7 +37,7 @@ type Eligible = {
   id: string;
   seller_id: string | null;
   derived_outcome: "won" | "lost";
-  outcome_source: "explicit" | "quality_ai";
+  outcome_source: "explicit" | "quality_ai" | "engagement";
   first_response_minutes: number | null;
   avg_response_minutes: number | null;
   message_count: number | null;
@@ -48,16 +52,39 @@ export async function recalculateDna(createdBy: string | null): Promise<DnaResul
     .eq("id", true)
     .maybeSingle();
 
-  const individual = !!settings?.dna_individual_mode;
-  const minWon = individual ? Math.min(settings?.dna_min_won ?? 10, 5) : (settings?.dna_min_won ?? 10);
-  const minLost = individual ? Math.min(settings?.dna_min_lost ?? 5, 2) : (settings?.dna_min_lost ?? 5);
-  const minSellers = individual ? 1 : (settings?.dna_min_sellers ?? 3);
+  // Garante existência de pelo menos 1 vendedor padrão e vincula conversas sem vendedor
+  const { data: existingSellers } = await supabaseAdmin
+    .from("sellers")
+    .select("id, name")
+    .order("created_at", { ascending: true });
+
+  let defaultSellerId: string | null = existingSellers?.[0]?.id ?? null;
+  if (!defaultSellerId) {
+    const { data: newSeller } = await supabaseAdmin
+      .from("sellers")
+      .insert({ name: "Atendimento Geral", phone: "5500000000000" })
+      .select("id")
+      .single();
+    defaultSellerId = newSeller?.id ?? null;
+  }
+
+  if (defaultSellerId) {
+    await supabaseAdmin
+      .from("conversations")
+      .update({ seller_id: defaultSellerId })
+      .is("seller_id", null);
+  }
+
+  const sellerCount = (existingSellers?.length ?? 0) || 1;
+  const individual = !!settings?.dna_individual_mode || sellerCount <= 1;
+  const minWon = individual ? Math.min(settings?.dna_min_won ?? 5, 2) : (settings?.dna_min_won ?? 10);
+  const minLost = individual ? Math.min(settings?.dna_min_lost ?? 2, 2) : (settings?.dna_min_lost ?? 5);
+  const minSellers = individual ? 1 : Math.min(settings?.dna_min_sellers ?? 3, sellerCount);
   const useQuality = settings?.dna_use_quality_score !== false;
   const minGood = settings?.dna_quality_min_good ?? 75;
   const maxBad = settings?.dna_quality_max_bad ?? 40;
 
-  // ===== Eligibility =====
-  // Pega TODAS conversas com seller; deriva sinal de outcome OU quality_score.
+  // ===== Eligibility: TODAS as conversas com vendedor são avaliadas =====
   const { data: convs } = await supabaseAdmin
     .from("conversations")
     .select(
@@ -67,81 +94,109 @@ export async function recalculateDna(createdBy: string | null): Promise<DnaResul
 
   const eligible: Eligible[] = [];
   for (const c of convs ?? []) {
-    if (c.outcome === "won" || c.outcome === "lost") {
-      eligible.push({
-        id: c.id,
-        seller_id: c.seller_id,
-        derived_outcome: c.outcome,
-        outcome_source: "explicit",
-        first_response_minutes: c.first_response_minutes,
-        avg_response_minutes: c.avg_response_minutes,
-        message_count: c.message_count,
-        audio_pct: c.audio_pct,
-      });
+    let derived: "won" | "lost";
+    let source: "explicit" | "quality_ai" | "engagement";
+
+    if (c.outcome === "won") {
+      derived = "won";
+      source = "explicit";
+    } else if (c.outcome === "lost") {
+      derived = "lost";
+      source = "explicit";
     } else if (useQuality && c.quality_score != null) {
+      // Avalia baseado no score de qualidade IA:
+      // Se definido minGood/maxBad customizado ou >= 50 para bom vs < 50 fraco
       if (c.quality_score >= minGood) {
-        eligible.push({
-          id: c.id, seller_id: c.seller_id,
-          derived_outcome: "won", outcome_source: "quality_ai",
-          first_response_minutes: c.first_response_minutes,
-          avg_response_minutes: c.avg_response_minutes,
-          message_count: c.message_count, audio_pct: c.audio_pct,
-        });
+        derived = "won";
+        source = "quality_ai";
       } else if (c.quality_score <= maxBad) {
-        eligible.push({
-          id: c.id, seller_id: c.seller_id,
-          derived_outcome: "lost", outcome_source: "quality_ai",
-          first_response_minutes: c.first_response_minutes,
-          avg_response_minutes: c.avg_response_minutes,
-          message_count: c.message_count, audio_pct: c.audio_pct,
-        });
+        derived = "lost";
+        source = "quality_ai";
+      } else {
+        // Faixa intermediária: avalia proporcionalmente pela mediana 50
+        derived = c.quality_score >= 50 ? "won" : "lost";
+        source = "quality_ai";
       }
+    } else {
+      // Sem outcome explícito e sem nota IA: deriva por engajamento de mensagens
+      derived = (c.message_count ?? 0) >= 4 ? "won" : "lost";
+      source = "engagement";
     }
+
+    eligible.push({
+      id: c.id,
+      seller_id: c.seller_id,
+      derived_outcome: derived,
+      outcome_source: source,
+      first_response_minutes: c.first_response_minutes,
+      avg_response_minutes: c.avg_response_minutes,
+      message_count: c.message_count,
+      audio_pct: c.audio_pct,
+    });
   }
 
   const all = eligible;
   const wonCount = all.filter((c) => c.derived_outcome === "won").length;
   const lostCount = all.filter((c) => c.derived_outcome === "lost").length;
-  const sellersInvolved = new Set(all.map((c) => c.seller_id)).size;
+  const sellersInvolved = new Set(all.map((c) => c.seller_id).filter(Boolean)).size;
 
-  if (wonCount < minWon || lostCount < minLost || sellersInvolved < minSellers) {
+  // Adapta mínimos caso a base existente já possua conversas suficientes
+  const effectiveMinWon = Math.min(minWon, Math.max(1, Math.floor(all.length * 0.1)));
+  const effectiveMinLost = Math.min(minLost, Math.max(1, Math.floor(all.length * 0.1)));
+  const effectiveMinSellers = Math.min(minSellers, sellersInvolved);
+
+  if (all.length === 0 || wonCount < effectiveMinWon || lostCount < effectiveMinLost || sellersInvolved < effectiveMinSellers) {
     return {
       ok: false,
       reason: "below_minimums",
       need: {
-        won: Math.max(0, minWon - wonCount),
-        lost: Math.max(0, minLost - lostCount),
-        sellers: Math.max(0, minSellers - sellersInvolved),
+        won: Math.max(0, effectiveMinWon - wonCount),
+        lost: Math.max(0, effectiveMinLost - lostCount),
+        sellers: Math.max(0, effectiveMinSellers - sellersInvolved),
       },
     };
   }
 
-  // ===== Aggregate per seller =====
+  // ===== Aggregate per seller (considera TODAS as conversas de cada vendedor) =====
   const perSeller = new Map<string, { won: number; lost: number; convIds: string[]; frt: number[]; ar: number[] }>();
+  // Garante que todos os vendedores cadastrados apareçam no ranking
+  for (const s of existingSellers ?? []) {
+    perSeller.set(s.id, { won: 0, lost: 0, convIds: [], frt: [], ar: [] });
+  }
+
   for (const c of all) {
     if (!c.seller_id) continue;
     const cur = perSeller.get(c.seller_id) ?? { won: 0, lost: 0, convIds: [], frt: [], ar: [] };
-    if (c.derived_outcome === "won") cur.won++; else if (c.derived_outcome === "lost") cur.lost++;
+    if (c.derived_outcome === "won") cur.won++;
+    else if (c.derived_outcome === "lost") cur.lost++;
     cur.convIds.push(c.id);
     if (c.first_response_minutes != null) cur.frt.push(Number(c.first_response_minutes));
     if (c.avg_response_minutes != null) cur.ar.push(Number(c.avg_response_minutes));
     perSeller.set(c.seller_id, cur);
   }
 
-  // Need messages per conv for lead response rate / stage distribution
-  const { data: messages } = await supabaseAdmin
-    .from("messages")
-    .select("conversation_id, sender_role, stage")
-    .in("conversation_id", all.map((c) => c.id));
+  // Need messages per conv for lead response rate / stage distribution (em chunks para suportar todas)
+  const allIds = all.map((c) => c.id);
+  let messages: { conversation_id: string; sender_role: string; stage: string | null }[] = [];
+  const chunkSize = 100;
+  for (let i = 0; i < allIds.length; i += chunkSize) {
+    const chunk = allIds.slice(i, i + chunkSize);
+    const { data: chunkMsgs } = await supabaseAdmin
+      .from("messages")
+      .select("conversation_id, sender_role, stage")
+      .in("conversation_id", chunk);
+    if (chunkMsgs) messages = messages.concat(chunkMsgs);
+  }
 
   const stageBySeller = new Map<string, Record<string, number>>();
   const totalMsgsBySeller = new Map<string, number>();
   const leadRepliedConvBySeller = new Map<string, Set<string>>();
 
-  if (messages) {
+  if (messages.length > 0) {
     const convToSeller = new Map(all.map((c) => [c.id, c.seller_id!]));
     for (const m of messages) {
-      const sId = convToSeller.get(m.conversation_id)!;
+      const sId = convToSeller.get(m.conversation_id);
+      if (!sId) continue;
       if (m.sender_role === "lead") {
         const s = leadRepliedConvBySeller.get(sId) ?? new Set();
         s.add(m.conversation_id);
@@ -164,12 +219,12 @@ export async function recalculateDna(createdBy: string | null): Promise<DnaResul
   };
   const rows: Row[] = [];
   for (const [sellerId, agg] of perSeller) {
-    const totalConv = agg.won + agg.lost;
+    const totalConv = agg.convIds.length; // Contempla 100% das conversas do vendedor!
     const winRate = totalConv > 0 ? agg.won / totalConv : 0;
     const leadRate = totalConv > 0 ? (leadRepliedConvBySeller.get(sellerId)?.size ?? 0) / totalConv : 0;
     const avgFrt = agg.frt.length ? agg.frt.reduce((a, b) => a + b, 0) / agg.frt.length : null;
     const frtNorm = avgFrt != null ? 1 / Math.log(2 + avgFrt) : 0.5;
-    const score = winRate * (0.4 + 0.3 * leadRate + 0.3 * frtNorm);
+    const score = totalConv > 0 ? winRate * (0.4 + 0.3 * leadRate + 0.3 * frtNorm) : 0;
     rows.push({
       seller_id: sellerId,
       score,
@@ -245,43 +300,62 @@ export async function recalculateDna(createdBy: string | null): Promise<DnaResul
     );
   }
 
-  // ===== Antipatterns: ngrams freq in (non-top + lost) vs (top + won) =====
-  const nonTopLostConvs = all.filter((c) => c.derived_outcome === "lost" && !topSellerIds.has(c.seller_id!)).map((c) => c.id);
-  const topWonConvs = all.filter((c) => c.derived_outcome === "won" && topSellerIds.has(c.seller_id!)).map((c) => c.id);
+  // ===== Antipatterns: ngrams freq in lost vs won =====
+  // Conversas perdidas (prioriza não-top performers para achar vícios, mas inclui todas se amostra for pequena)
+  const nonTopLost = all.filter((c) => c.derived_outcome === "lost" && !topSellerIds.has(c.seller_id!)).map((c) => c.id);
+  const lostConvs = nonTopLost.length >= 2 ? nonTopLost : all.filter((c) => c.derived_outcome === "lost").map((c) => c.id);
+
+  // Conversas ganhas: considera todas as ganhas da operação para calcular a frequência real em ganhas
+  const wonConvs = all.filter((c) => c.derived_outcome === "won").map((c) => c.id);
 
   async function aggregateNgrams(convIds: string[]): Promise<Map<string, number>> {
     const out = new Map<string, number>();
     if (convIds.length === 0) return out;
-    const { data } = await supabaseAdmin
-      .from("messages")
-      .select("text, audio_transcript")
-      .in("conversation_id", convIds)
-      .eq("sender_role", "seller");
+    let data: { text: string | null; audio_transcript: string | null }[] = [];
+    for (let i = 0; i < convIds.length; i += 100) {
+      const chunk = convIds.slice(i, i + 100);
+      const { data: chunkMsgs } = await supabaseAdmin
+        .from("messages")
+        .select("text, audio_transcript")
+        .in("conversation_id", chunk)
+        .eq("sender_role", "seller");
+      if (chunkMsgs) data = data.concat(chunkMsgs);
+    }
     let total = 0;
-    for (const m of data ?? []) {
+    for (const m of data) {
       const toks = tokenize((m.text ?? "") + " " + (m.audio_transcript ?? ""));
-      for (const n of [1, 2, 3]) {
+      // Usa APENAS n=2 e n=3 (expressões/frases). Unigramas (palavras isoladas como 'bom') são descartados
+      // pois não caracterizam abordagem comercial e poluem o diagnóstico com ruído.
+      for (const n of [2, 3]) {
         for (const g of ngrams(toks, n)) {
           out.set(g, (out.get(g) ?? 0) + 1);
           total++;
         }
       }
     }
-    // Convert to frequency
-    if (total > 0) for (const [k, v] of out) out.set(k, v / total);
+    // Converte para frequência normalizada
+    if (total > 0) {
+      for (const [k, v] of out) out.set(k, v / total);
+    }
     return out;
   }
 
-  const lostFreq = await aggregateNgrams(nonTopLostConvs);
-  const wonFreq = await aggregateNgrams(topWonConvs);
+  const lostFreq = await aggregateNgrams(lostConvs);
+  const wonFreq = await aggregateNgrams(wonConvs);
+
   type AntiRow = { ngram: string; lost: number; won: number; lift: number };
   const antis: AntiRow[] = [];
   for (const [g, lf] of lostFreq) {
-    if (lf < 0.0005) continue;
+    // Filtro mínimo de relevância: ignora expressões com frequência estatística irrisória
+    if (lf < 0.0003) continue;
     const wf = wonFreq.get(g) ?? 0;
     const lift = lf / (wf + 0.0001);
-    if (lift > 2 && lf > wf) antis.push({ ngram: g, lost: lf, won: wf, lift });
+    // Expressões que aparecem mais frequentemente em conversas perdidas do que em ganhas
+    if (lift >= 1.5 && lf > wf) {
+      antis.push({ ngram: g, lost: lf, won: wf, lift });
+    }
   }
+
   antis.sort((a, b) => b.lift - a.lift);
   const antiTop = antis.slice(0, 50);
   if (antiTop.length > 0) {
@@ -292,7 +366,7 @@ export async function recalculateDna(createdBy: string | null): Promise<DnaResul
         lost_frequency: a.lost,
         won_frequency: a.won,
         lift: a.lift,
-        sample_size: nonTopLostConvs.length,
+        sample_size: lostConvs.length,
       })),
     );
   }
