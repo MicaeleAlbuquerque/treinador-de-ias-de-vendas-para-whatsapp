@@ -76,7 +76,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" },
       { title: "Treinador de IAs de Vendas no WhatsApp | Viver de IA" },
       { name: "description", content: "Transforme as conversas dos seus melhores vendedores em DNA de atendimento e prompts prontos para IA." },
       { name: "author", content: "Viver de IA" },

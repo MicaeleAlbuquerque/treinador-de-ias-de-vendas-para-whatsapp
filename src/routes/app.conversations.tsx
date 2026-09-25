@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { useMyRole } from "@/lib/user-role";
-import { Upload, MessageCircle, Smartphone, Search, Trash2, AlertTriangle, X, Mic } from "lucide-react";
+import { Upload, MessageCircle, Smartphone, Search, Trash2, AlertTriangle, X, Mic, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   cleanupInvalidConversations,
@@ -14,6 +14,7 @@ import {
   deleteConversation,
   deleteMultipleConversations,
   processPendingTranscriptionsNow,
+  syncLeadContactNames,
 } from "@/lib/whatsapp.functions";
 
 export const Route = createFileRoute("/app/conversations")({
@@ -321,6 +322,26 @@ function ConversationsList() {
     finally { setCleaning(false); }
   }
 
+  const syncNamesFn = useServerFn(syncLeadContactNames);
+  const [syncingNames, setSyncingNames] = useState(false);
+
+  async function onSyncContactNames() {
+    setSyncingNames(true);
+    try {
+      const res = await syncNamesFn({});
+      if (res.updated === 0) {
+        toast.info("Todas as conversas já possuem nome de contato ou não há novos nomes nas mensagens.");
+      } else {
+        toast.success(`Atualizados ${res.updated} nome(s) de contato de leads!`);
+        qc.invalidateQueries({ queryKey: ["conversations"] });
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSyncingNames(false);
+    }
+  }
+
   async function onDeleteConversation(c: ConvRow, e: React.MouseEvent) {
     e.stopPropagation();
     const label = c.lead_name_anon || c.lead_phone;
@@ -339,29 +360,38 @@ function ConversationsList() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between gap-4 flex-wrap">
+      <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <span className="via-label">Conversas</span>
-          <h1 className="mt-1 text-3xl">Histórico</h1>
+          <h1 className="mt-1 text-2xl sm:text-3xl">Histórico</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={onSyncContactNames}
+            disabled={syncingNames}
+            className="via-btn via-btn-secondary inline-flex items-center gap-1.5 text-xs"
+            title="Varre as mensagens para preencher o nome de contato real de quem ainda está com 'Lead...'"
+          >
+            <RefreshCw size={13} className={syncingNames ? "animate-spin text-primary" : ""} />
+            {syncingNames ? "Sincronizando…" : "Sincronizar nomes"}
+          </button>
           {kpis.invalid > 0 && (
             <button
               onClick={onCleanup}
               disabled={cleaning}
-              className="via-btn via-btn-secondary inline-flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+              className="via-btn via-btn-secondary inline-flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50 text-xs"
               title="Remove conversas com telefone inválido ou sem mensagens."
             >
-              <Trash2 size={14} /> {cleaning ? "Limpando…" : `Limpar ${kpis.invalid} inválida(s)`}
+              <Trash2 size={13} /> {cleaning ? "Limpando…" : `Limpar ${kpis.invalid}`}
             </button>
           )}
           <button
             onClick={openDeleteModal}
             disabled={cleaning || isDeletingBulk}
-            className="via-btn via-btn-secondary inline-flex items-center gap-2 text-red-700 border-red-300 hover:bg-red-50"
+            className="via-btn via-btn-secondary inline-flex items-center gap-2 text-red-700 border-red-300 hover:bg-red-50 text-xs"
             title="Apagar conversas (Evolution e Upload, específicas ou em massa)."
           >
-            <Trash2 size={14} /> Apagar conversas
+            <Trash2 size={13} /> Apagar conversas
           </button>
           <Link
             to="/app/conversations/upload"
@@ -371,9 +401,9 @@ function ConversationsList() {
                 sessionStorage.removeItem("last_imported_conv_idx");
               } catch {}
             }}
-            className="via-btn via-btn-secondary inline-flex items-center gap-2"
+            className="via-btn via-btn-secondary inline-flex items-center gap-2 text-xs"
           >
-            <Upload size={14} /> Subir export manual
+            <Upload size={13} /> Subir export
           </Link>
         </div>
       </header>
@@ -511,79 +541,147 @@ function ConversationsList() {
           )}
         </div>
       ) : (
-        <div className="via-card overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-secondary text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-4 py-2 text-left">Lead</th>
-                <th className="px-4 py-2 text-left">Vendedor</th>
-                <th className="px-4 py-2 text-left">Mensagens</th>
-                <th className="px-4 py-2 text-left">Outcome</th>
-                <th className="px-4 py-2 text-left">Origem</th>
-                <th className="px-4 py-2 text-left">Última msg</th>
-                <th className="px-4 py-2 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c) => (
-                <tr
-                  key={c.id}
-                  onClick={() => navigate({ to: "/app/conversations/$id", params: { id: c.id } })}
-                  className="cursor-pointer border-b border-border last:border-0 hover:bg-secondary"
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{c.lead_name_anon ?? "Lead"}</span>
+        <div className="via-card p-0 overflow-hidden">
+          {/* Visualização em Cards para Mobile (< sm) */}
+          <div className="divide-y divide-border sm:hidden">
+            {filtered.map((c) => (
+              <div
+                key={c.id}
+                onClick={() => navigate({ to: "/app/conversations/$id", params: { id: c.id } })}
+                className="p-3.5 space-y-2 cursor-pointer active:bg-secondary/70 hover:bg-secondary transition-colors"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-semibold text-sm truncate text-foreground">
+                        {c.lead_name_anon ?? "Lead"}
+                      </span>
                       {!/^\+?\d{6,20}$/.test(c.lead_phone) && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-red-700">
-                          <AlertTriangle size={10} /> inválida
+                        <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 dark:bg-red-950/30 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-red-700 dark:text-red-400">
+                          <AlertTriangle size={9} /> inválida
                         </span>
                       )}
                     </div>
-                    <div className={`text-xs ${/^\+?\d{6,20}$/.test(c.lead_phone) ? "text-muted-foreground" : "text-red-600 font-mono truncate max-w-[200px]"}`} title={c.lead_phone}>
+                    <div className={`text-xs ${/^\+?\d{6,20}$/.test(c.lead_phone) ? "text-muted-foreground" : "text-red-600 font-mono truncate"}`} title={c.lead_phone}>
                       {c.lead_phone}
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {c.sellers?.name ?? <span className="italic text-amber-700">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.message_count}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col items-start gap-0.5">
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${OUTCOME_BADGE[c.outcome] ?? OUTCOME_BADGE.unknown}`}>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${OUTCOME_BADGE[c.outcome] ?? OUTCOME_BADGE.unknown}`}>
                         {OUTCOME_LABEL[c.outcome] ?? c.outcome}
                       </span>
                       {c.outcome === "won" && c.outcome_value != null && (
-                        <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                        <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
                           R$ {Number(c.outcome_value).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       )}
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    <span className="inline-flex items-center gap-1 text-xs">
-                      {c.source === "upload" ? <Upload size={12} /> : <Smartphone size={12} />}
-                      {c.source}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {c.last_msg_at ? new Date(c.last_msg_at).toLocaleString("pt-BR") : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={(e) => onDeleteConversation(c, e)}
                       disabled={deletingId === c.id}
-                      className="inline-flex items-center justify-center rounded p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors"
-                      title="Apagar esta conversa"
+                      className="p-1.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-colors"
+                      title="Apagar conversa"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={13} />
                     </button>
-                  </td>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1.5 border-t border-border/50">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate max-w-[130px]">
+                      {c.sellers?.name ? `Vend: ${c.sellers.name}` : <span className="italic text-amber-700 dark:text-amber-500">Sem vendedor</span>}
+                    </span>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1">
+                      {c.source === "upload" ? <Upload size={10} /> : <Smartphone size={10} />}
+                      {c.message_count} msgs
+                    </span>
+                  </div>
+                  <span>{c.last_msg_at ? new Date(c.last_msg_at).toLocaleDateString("pt-BR") : "—"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabela completa para Desktop (>= sm) */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border bg-secondary text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2 text-left">Lead</th>
+                  <th className="px-4 py-2 text-left">Vendedor</th>
+                  <th className="px-4 py-2 text-left">Mensagens</th>
+                  <th className="px-4 py-2 text-left">Outcome</th>
+                  <th className="px-4 py-2 text-left">Origem</th>
+                  <th className="px-4 py-2 text-left">Última msg</th>
+                  <th className="px-4 py-2 text-right">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map((c) => (
+                  <tr
+                    key={c.id}
+                    onClick={() => navigate({ to: "/app/conversations/$id", params: { id: c.id } })}
+                    className="cursor-pointer border-b border-border last:border-0 hover:bg-secondary"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{c.lead_name_anon ?? "Lead"}</span>
+                        {!/^\+?\d{6,20}$/.test(c.lead_phone) && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-red-700">
+                            <AlertTriangle size={10} /> inválida
+                          </span>
+                        )}
+                      </div>
+                      <div className={`text-xs ${/^\+?\d{6,20}$/.test(c.lead_phone) ? "text-muted-foreground" : "text-red-600 font-mono truncate max-w-[200px]"}`} title={c.lead_phone}>
+                        {c.lead_phone}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {c.sellers?.name ?? <span className="italic text-amber-700">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{c.message_count}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col items-start gap-0.5">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${OUTCOME_BADGE[c.outcome] ?? OUTCOME_BADGE.unknown}`}>
+                          {OUTCOME_LABEL[c.outcome] ?? c.outcome}
+                        </span>
+                        {c.outcome === "won" && c.outcome_value != null && (
+                          <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                            R$ {Number(c.outcome_value).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 text-xs">
+                        {c.source === "upload" ? <Upload size={12} /> : <Smartphone size={12} />}
+                        {c.source}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {c.last_msg_at ? new Date(c.last_msg_at).toLocaleString("pt-BR") : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={(e) => onDeleteConversation(c, e)}
+                        disabled={deletingId === c.id}
+                        className="inline-flex items-center justify-center rounded p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors"
+                        title="Apagar esta conversa"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

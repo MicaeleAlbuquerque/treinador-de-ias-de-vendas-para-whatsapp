@@ -171,10 +171,10 @@ function ConversationDetail() {
         </Link>
       </div>
 
-      <header className="via-card flex flex-wrap items-center justify-between gap-4">
+      <header className="via-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="text-xs text-muted-foreground">{conv.lead_phone}</div>
-          <h1 className="text-2xl">{conv.lead_name_anon ?? "Lead"}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">{conv.lead_name_anon ?? "Lead"}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${OUTCOME_BADGE[conv.outcome] ?? OUTCOME_BADGE.unknown}`}>
               {OUTCOME_LABEL[conv.outcome] ?? conv.outcome}
@@ -207,11 +207,11 @@ function ConversationDetail() {
         </div>
       </header>
 
-      <div className="via-card flex flex-wrap items-center gap-2">
+      <div className="via-card flex flex-wrap items-center gap-2 p-3 sm:p-4">
         <button type="button" onClick={() => handleTag("won", wonValue ? Number(wonValue) : null)} className="via-btn via-btn-sm via-btn-secondary inline-flex items-center gap-1">
           <Check size={14} /> Marcar Won
         </button>
-        <input type="number" placeholder="Valor R$" value={wonValue} onChange={(e) => setWonValue(e.target.value)} className="via-input w-28 text-xs" />
+        <input type="number" placeholder="Valor R$" value={wonValue} onChange={(e) => setWonValue(e.target.value)} className="via-input w-24 sm:w-28 text-xs" />
         <button type="button" onClick={() => handleTag("lost")} className="via-btn via-btn-sm via-btn-secondary inline-flex items-center gap-1">
           <X size={14} /> Marcar Lost
         </button>
@@ -245,13 +245,13 @@ function ConversationDetail() {
         </button>
 
         {!conv.seller_id && (
-          <div className="ml-auto flex items-center gap-2">
-            <UserCircle size={14} className="text-muted-foreground" />
+          <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2 pt-1 sm:pt-0">
+            <UserCircle size={14} className="text-muted-foreground shrink-0" />
             <select
               disabled={assigning}
               defaultValue=""
               onChange={(e) => e.target.value && handleAssign(e.target.value)}
-              className="via-input max-w-[200px]"
+              className="via-input w-full sm:max-w-[200px]"
             >
               <option value="">Atribuir vendedor…</option>
               {(sellersQ.data ?? []).map((s) => (
@@ -262,7 +262,7 @@ function ConversationDetail() {
         )}
       </div>
 
-      <div className="via-card space-y-3 bg-[#ECE5DD] dark:bg-[#0b141a]">
+      <div className="via-card space-y-3 bg-[#ECE5DD] dark:bg-[#0b141a] p-3 sm:p-5">
         {msgsQ.isLoading ? (
           <div className="text-sm text-muted-foreground">Carregando mensagens…</div>
         ) : (msgsQ.data ?? []).length === 0 ? (
@@ -306,7 +306,7 @@ function Bubble({
   return (
     <div className={`flex ${isSeller ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[80%] rounded-lg px-3 py-2 shadow-sm ${
+        className={`max-w-[88%] sm:max-w-[80%] rounded-lg px-3 py-2 shadow-sm ${
           isSeller
             ? "bg-[#DCF8C6] text-zinc-900 dark:bg-[#005c4b] dark:text-[#e9edef]"
             : "bg-white text-zinc-900 dark:bg-[#202c33] dark:text-[#e9edef]"
@@ -315,7 +315,7 @@ function Bubble({
         {msg.media_type === "audio" ? (
           <div className="space-y-2">
             {msg.audio_url ? (
-              <audio controls src={msg.audio_url} className="w-full" />
+              <audio controls src={msg.audio_url} className="w-full max-w-[280px] sm:max-w-md" />
             ) : (
               <div className="text-xs text-muted-foreground italic">[áudio]</div>
             )}

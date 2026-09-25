@@ -923,6 +923,17 @@ export async function processSyncHistoryJob(jobId: string): Promise<{
       // — TODOS os gates do pipeline (quality_score, playbook, DNA) filtram por
       // message_count, então sem isso a conversa fica invisível ao sistema.
       if (conversationId) {
+        // Se a conversa ainda tem nome placeholder, tenta recuperar o pushName de alguma mensagem do lead
+        if (!isRealName(incomingName)) {
+          const leadPushName = msgsRes.messages.find((m) => !m.from_me && isRealName(m.push_name))?.push_name?.trim();
+          if (leadPushName) {
+            await supabaseAdmin
+              .from("conversations")
+              .update({ lead_name_anon: leadPushName, updated_at: new Date().toISOString() })
+              .eq("id", conversationId);
+          }
+        }
+
         const { count: realCount } = await supabaseAdmin
           .from("messages")
           .select("id", { count: "exact", head: true })
@@ -1481,4 +1492,62 @@ export const processPendingTranscriptionsNow = createServerFn({ method: "POST" }
     const { processAllPendingTranscriptions } = await import("@/lib/transcribe.server");
     return await processAllPendingTranscriptions(30);
   });
+
+/**
+ * Varre conversas que ainda têm placeholder ("Lead (11)..." ou número puro)
+ * e tenta recuperar o nome real a partir das mensagens salvas no banco.
+ */
+export const syncLeadContactNames = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { data: convs, error } = await supabaseAdmin
+      .from("conversations")
+      .select("id, lead_name_anon, lead_phone")
+      .order("created_at", { ascending: false });
+
+    if (error || !convs) return { updated: 0, checked: 0 };
+
+    let updated = 0;
+    const isReal = (n: string | null | undefined) =>
+      !!n && !/^\+?\d{6,20}$/.test(n.trim()) && !/^Lead\s+/i.test(n.trim());
+
+    for (const c of convs) {
+      if (isReal(c.lead_name_anon)) continue;
+
+      // Busca mensagens do lead nessa conversa
+      const { data: msgs } = await supabaseAdmin
+        .from("messages")
+        .select("raw")
+        .eq("conversation_id", c.id)
+        .eq("sender_role", "lead")
+        .limit(20);
+
+      let foundName: string | null = null;
+      for (const m of msgs ?? []) {
+        const r = (m.raw as any) ?? {};
+        const cand =
+          r.pushName ??
+          r.message?.pushName ??
+          r.push_name ??
+          r.senderName ??
+          r.verifiedBizName ??
+          r.key?.pushName;
+        if (typeof cand === "string" && isReal(cand)) {
+          foundName = cand.trim().slice(0, 100);
+          break;
+        }
+      }
+
+      if (foundName) {
+        await supabaseAdmin
+          .from("conversations")
+          .update({ lead_name_anon: foundName, updated_at: new Date().toISOString() })
+          .eq("id", c.id);
+        updated++;
+      }
+    }
+
+    return { updated, checked: convs.length };
+  });
+
 

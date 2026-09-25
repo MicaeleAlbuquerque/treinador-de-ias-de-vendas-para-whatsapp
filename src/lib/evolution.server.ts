@@ -578,7 +578,17 @@ export function normalizeChat(c: unknown): ImportedChat | null {
   return {
     remote_jid: remoteJid,
     lead_phone: isGroup ? null : readChatLeadPhone(c, remoteJid),
-    display_name: x.name ?? x.pushName ?? x.notify ?? x.verifiedName ?? x.lastMessage?.pushName ?? null,
+    display_name:
+      x.name ??
+      x.pushName ??
+      x.notify ??
+      x.verifiedName ??
+      x.verifiedBizName ??
+      x.contact?.name ??
+      x.contact?.pushName ??
+      x.senderName ??
+      x.lastMessage?.pushName ??
+      null,
     is_group: isGroup,
   };
 }

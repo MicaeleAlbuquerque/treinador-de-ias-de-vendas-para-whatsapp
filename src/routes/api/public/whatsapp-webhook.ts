@@ -72,6 +72,42 @@ function detectMediaType(message: any): "text" | "audio" | "image" | "video" | "
   return "text";
 }
 
+function isRealName(n: string | null | undefined): boolean {
+  if (!n) return false;
+  const s = n.trim();
+  if (!s) return false;
+  // Desconsidera telefones puros
+  if (/^\+?\d{6,20}$/.test(s)) return false;
+  // Desconsidera placeholders genéricos tipo "Lead ***"
+  if (/^Lead\s+/i.test(s)) return false;
+  return true;
+}
+
+function extractContactName(it: any, fromMe: boolean): string | null {
+  if (!fromMe) {
+    const candidates = [
+      it.pushName,
+      it.message?.pushName,
+      it.push_name,
+      it.senderName,
+      it.verifiedBizName,
+      it.key?.pushName,
+      it.contact?.pushName,
+      it.contact?.name,
+    ];
+    for (const c of candidates) {
+      if (typeof c === "string" && isRealName(c)) {
+        return c.trim().slice(0, 100);
+      }
+    }
+  }
+  const chatName = it.chat?.name ?? it.chat?.pushName;
+  if (typeof chatName === "string" && isRealName(chatName)) {
+    return chatName.trim().slice(0, 100);
+  }
+  return null;
+}
+
 async function handleMessagesUpsert(instanceId: string, instanceSellerId: string | null, payload: any) {
   const items: any[] = Array.isArray(payload?.data)
     ? payload.data
@@ -102,6 +138,9 @@ async function handleMessagesUpsert(instanceId: string, instanceSellerId: string
       continue;
     }
 
+    // Extrai o nome real do contato enviado pelo WhatsApp
+    const contactName = extractContactName(it, fromMe);
+
     const convSellerId = instanceSellerId;
 
     // Upsert conversation. CRÍTICO: quando convSellerId é null, usar .is() —
@@ -110,7 +149,7 @@ async function handleMessagesUpsert(instanceId: string, instanceSellerId: string
     let conversationId: string;
     let convQuery = supabaseAdmin
       .from("conversations")
-      .select("id")
+      .select("id, lead_name_anon")
       .eq("lead_phone", leadPhone)
       .eq("source", "evolution");
     convQuery = convSellerId
@@ -119,13 +158,21 @@ async function handleMessagesUpsert(instanceId: string, instanceSellerId: string
     const { data: existingConv } = await convQuery.limit(1).maybeSingle();
     if (existingConv) {
       conversationId = existingConv.id;
+      // Se a conversa já existe mas tem placeholder ou número puro, promove pro nome real do contato
+      if (contactName && !isRealName(existingConv.lead_name_anon)) {
+        await supabaseAdmin
+          .from("conversations")
+          .update({ lead_name_anon: contactName, updated_at: new Date().toISOString() })
+          .eq("id", existingConv.id);
+      }
     } else {
+      const initialName = contactName || `Lead ${maskPhone(leadPhone)}`;
       const { data: newConv, error: ce } = await supabaseAdmin
         .from("conversations")
         .insert({
           seller_id: convSellerId,
           lead_phone: leadPhone,
-          lead_name_anon: `Lead ${maskPhone(leadPhone)}`,
+          lead_name_anon: initialName,
           source: "evolution",
           external_chat_id: jid ?? null,
           first_msg_at: new Date().toISOString(),
