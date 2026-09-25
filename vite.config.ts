@@ -14,7 +14,17 @@ export default defineConfig({
   },
   vite: {
     server: {
-      host: true, // Escuta em 0.0.0.0 liberando o link de Network para outros dispositivos e Docker
+      host: "0.0.0.0", // Força IPv4 explícito para evitar lentidão de dual-stack no Windows
+    },
+    optimizeDeps: {
+      include: [
+        "lucide-react",
+        "@tanstack/react-router",
+        "@tanstack/react-query",
+        "clsx",
+        "tailwind-merge",
+        "date-fns",
+      ],
     },
   },
 });
