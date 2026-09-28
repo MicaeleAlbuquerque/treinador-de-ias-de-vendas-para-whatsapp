@@ -184,11 +184,11 @@ function TeamPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-6 sm:space-y-8 min-w-0">
       <header>
         <span className="via-label">Equipe</span>
-        <h1 className="mt-1 text-3xl">Usuários e Membros</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="mt-1 text-2xl sm:text-3xl font-bold">Usuários e Membros</h1>
+        <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
           Gerencie os membros com acesso ao sistema. Todos os usuários têm
           acesso completo às instâncias e análises.
         </p>
@@ -358,7 +358,7 @@ function TeamPage() {
                 key={i.id}
                 className="py-3"
               >
-                <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <Mail
                       size={14}
@@ -375,7 +375,7 @@ function TeamPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  <div className="flex items-center gap-1.5 flex-wrap justify-start sm:justify-end w-full sm:w-auto">
                     <button
                       type="button"
                       onClick={() => {
@@ -415,7 +415,7 @@ function TeamPage() {
                     <button
                       type="button"
                       onClick={() => revokeInvite(i.id)}
-                      className="p-1.5 text-muted-foreground hover:text-[color:var(--via-danger)] hover:bg-[color:var(--via-danger)]/10 rounded-md transition-colors"
+                      className="p-1.5 text-muted-foreground hover:text-[color:var(--via-danger)] hover:bg-[color:var(--via-danger)]/10 rounded-md transition-colors ml-auto sm:ml-0"
                       title="Revogar convite"
                       aria-label="Revogar"
                     >
@@ -598,11 +598,11 @@ function InviteForm() {
   return (
     <div className="via-card space-y-4">
       {/* Abas */}
-      <div className="flex items-center gap-2 border-b border-border pb-3">
+      <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto scrollbar-none flex-nowrap -mx-1 px-1">
         <button
           type="button"
           onClick={() => setTab("invite")}
-          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-all ${
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-all shrink-0 whitespace-nowrap ${
             tab === "invite"
               ? "bg-primary text-primary-foreground shadow-xs"
               : "text-muted-foreground hover:text-foreground hover:bg-secondary"
@@ -615,7 +615,7 @@ function InviteForm() {
         <button
           type="button"
           onClick={() => setTab("direct")}
-          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-all ${
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-all shrink-0 whitespace-nowrap ${
             tab === "direct"
               ? "bg-primary text-primary-foreground shadow-xs"
               : "text-muted-foreground hover:text-foreground hover:bg-secondary"

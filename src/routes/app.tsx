@@ -76,7 +76,7 @@ function AppShell() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
+    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row overflow-x-hidden">
       {/* Sidebar Desktop (>= md) */}
       <AppSidebar email={user.email ?? undefined} />
 
@@ -94,8 +94,8 @@ function AppShell() {
       />
 
       {/* Conteúdo principal */}
-      <div className="flex-1 md:pl-64 flex flex-col min-w-0">
-        <main className="mx-auto w-full max-w-6xl px-3.5 py-4 sm:px-6 sm:py-8 md:py-10 pb-24 md:pb-10 flex-1">
+      <div className="flex-1 md:pl-64 flex flex-col min-w-0 overflow-x-hidden">
+        <main className="mx-auto w-full max-w-6xl px-3.5 py-4 sm:px-6 sm:py-8 md:py-10 pb-24 md:pb-10 flex-1 min-w-0">
           <Outlet />
         </main>
       </div>

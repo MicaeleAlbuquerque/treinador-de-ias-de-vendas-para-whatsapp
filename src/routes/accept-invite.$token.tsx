@@ -193,7 +193,7 @@ function AcceptInvitePage() {
   // Token inválido na URL
   if (isInvalidToken) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 bg-background">
         <Logo className="h-7 mb-8" />
         <div className="via-card max-w-md w-full space-y-4">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
@@ -234,7 +234,7 @@ function AcceptInvitePage() {
   if (user) {
     if (acceptingError) {
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 bg-background">
           <Logo className="h-7 mb-8" />
           <div className="via-card max-w-md w-full text-center space-y-4">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
@@ -262,7 +262,7 @@ function AcceptInvitePage() {
     }
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 bg-background">
         <Logo className="h-7 mb-8" />
         <div className="via-card max-w-md w-full text-center py-8 space-y-3">
           <RefreshCw className="animate-spin mx-auto text-primary" size={28} />
@@ -275,7 +275,7 @@ function AcceptInvitePage() {
 
   // Usuário não autenticado — formulário de cadastro / aceite
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 bg-background">
       <Logo className="h-7 mb-8" />
       <div className="via-card w-full max-w-md">
         <span className="via-label">Convite de Equipe</span>

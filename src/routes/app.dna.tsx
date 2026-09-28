@@ -31,11 +31,11 @@ function TierFilterNav({
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/40 p-1.5 rounded-xl border border-border">
-      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+      <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto scrollbar-none pb-0.5 sm:pb-0 -mx-0.5 px-0.5 flex-nowrap">
         <button
           type="button"
           onClick={() => onChange("all")}
-          className={`flex-1 sm:flex-none px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+          className={`shrink-0 whitespace-nowrap px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
             filter === "all"
               ? "bg-background text-foreground shadow-sm border border-border/80"
               : "text-muted-foreground hover:text-foreground"
@@ -46,7 +46,7 @@ function TierFilterNav({
         <button
           type="button"
           onClick={() => onChange("tier1")}
-          className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+          className={`shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
             filter === "tier1"
               ? "bg-background text-[color:var(--via-blue)] shadow-sm border border-border/80"
               : "text-muted-foreground hover:text-foreground"
@@ -58,7 +58,7 @@ function TierFilterNav({
         <button
           type="button"
           onClick={() => onChange("tier2")}
-          className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+          className={`shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
             filter === "tier2"
               ? "bg-background text-purple-600 dark:text-purple-400 shadow-sm border border-border/80"
               : "text-muted-foreground hover:text-foreground"
@@ -436,10 +436,10 @@ function DnaPage() {
             </div>
           </div>
 
-      <div className="flex gap-2 border-b border-border">
+      <div className="flex gap-2 border-b border-border overflow-x-auto scrollbar-none pb-1 -mx-1 px-1 flex-nowrap">
         {tabs.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-3 py-2 text-sm font-bold uppercase tracking-wide border-b-2 ${tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`}>
+            className={`px-3 py-2 text-xs sm:text-sm font-bold uppercase tracking-wide border-b-2 shrink-0 whitespace-nowrap ${tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             {t.label}
           </button>
         ))}

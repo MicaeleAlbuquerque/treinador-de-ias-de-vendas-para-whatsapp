@@ -171,19 +171,20 @@ function CoachPage() {
   });
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-6xl space-y-4 sm:space-y-6 min-w-0">
+      <header className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl flex items-center gap-2"><Activity size={26} /> Coach mode</h1>
-          <p className="text-sm text-muted-foreground">Treinamento prático de vendas com IA e acompanhamento da aderência do time ao Playbook.</p>
+          <h1 className="text-2xl sm:text-3xl flex items-center gap-2 font-bold"><Activity size={24} className="sm:size-[26px]" /> Coach mode</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Treinamento prático de vendas com IA e acompanhamento da aderência do time ao Playbook.</p>
         </div>
-        <div className="text-sm text-muted-foreground">
-          Base:{" "}
-          <span className="font-semibold text-foreground">
-            {statusQ.data?.baseMode === "dna" ? "DNA avançado" : statusQ.data?.baseMode === "playbook" ? "Playbook" : "— nenhuma"}
+        <div className="text-xs sm:text-sm text-muted-foreground flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <span>Base:{" "}
+            <span className="font-semibold text-foreground">
+              {statusQ.data?.baseMode === "dna" ? "DNA avançado" : statusQ.data?.baseMode === "playbook" ? "Playbook" : "— nenhuma"}
+            </span>
           </span>
-          <span className="mx-2">·</span>
-          Threshold:{" "}
+          <span className="opacity-40">·</span>
+          <span>Threshold:{" "}
           {editingThr == null ? (
             <button
               onClick={() => isAdmin && setEditingThr(threshold)}
@@ -197,49 +198,50 @@ function CoachPage() {
               <input
                 type="number" min={0} max={100} value={editingThr}
                 onChange={(e) => setEditingThr(Number(e.target.value))}
-                className="via-input w-20 text-xs"
+                className="via-input w-16 sm:w-20 text-xs py-1"
               />
-              <button onClick={saveThreshold} className="via-btn via-btn-sm via-btn-primary">Salvar</button>
-              <button onClick={() => setEditingThr(null)} className="via-btn via-btn-sm via-btn-secondary">Cancelar</button>
+              <button onClick={saveThreshold} className="via-btn via-btn-sm via-btn-primary text-xs">Salvar</button>
+              <button onClick={() => setEditingThr(null)} className="via-btn via-btn-sm via-btn-secondary text-xs">Cancelar</button>
             </span>
           )}
+          </span>
         </div>
       </header>
 
       {/* Abas Superiores do Coach */}
-      <div className="flex border-b border-border gap-2 overflow-x-auto">
+      <div className="flex border-b border-border gap-2 overflow-x-auto scrollbar-none pb-1 -mx-1 px-1">
         <button
           type="button"
           onClick={() => setActiveTab("arena")}
-          className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`pb-2 px-2.5 sm:px-3 text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
             activeTab === "arena"
               ? "border-[color:var(--via-blue)] text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Brain size={16} className="text-[color:var(--via-blue)]" /> Arena de Treinamento (Roleplay IA)
+          <Brain size={15} className="text-[color:var(--via-blue)] shrink-0" /> Arena de Treinamento (Roleplay IA)
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("metrics")}
-          className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`pb-2 px-2.5 sm:px-3 text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
             activeTab === "metrics"
               ? "border-[color:var(--via-blue)] text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Activity size={16} /> Aderência & Métricas do Time
+          <Activity size={15} className="shrink-0" /> Aderência & Métricas
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("history")}
-          className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`pb-2 px-2.5 sm:px-3 text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
             activeTab === "history"
               ? "border-[color:var(--via-blue)] text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Trophy size={16} className="text-amber-500" /> Histórico de Simulações
+          <Trophy size={15} className="text-amber-500 shrink-0" /> Histórico
           {(historyQ.data?.length ?? 0) > 0 && (
             <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold">
               {historyQ.data?.length}
@@ -351,46 +353,48 @@ function CoachPage() {
       )}
 
       <section className="grid gap-4 md:grid-cols-2">
-        <div className="via-card">
-          <h2 className="text-lg font-bold flex items-center gap-2 mb-3"><Trophy size={18} /> Aderência por agente humano (7d)</h2>
+        <div className="via-card min-w-0">
+          <h2 className="text-base sm:text-lg font-bold flex items-center gap-2 mb-3"><Trophy size={18} /> Aderência por agente humano (7d)</h2>
           {perSellerQ.isLoading ? (
             <div className="text-sm text-muted-foreground">Carregando…</div>
           ) : (perSellerQ.data ?? []).length === 0 ? (
             <div className="text-sm text-muted-foreground">Sem avaliações nos últimos 7 dias.</div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground uppercase">
-                  <th className="pb-2">Vendedor</th><th className="pb-2">Mensagens</th><th className="pb-2">Score médio</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(perSellerQ.data ?? []).map((s: any, i: number) => (
-                  <tr key={s.id} className="border-t border-border">
-                    <td className="py-2">{i === 0 && <Trophy size={12} className="inline mr-1 text-amber-500" />}{s.name}</td>
-                    <td className="py-2">{s.count}</td>
-                    <td className="py-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${scoreColor(s.avg)}`}>{Math.round(s.avg)}</span></td>
+            <div className="overflow-x-auto w-full -mx-1 px-1">
+              <table className="w-full text-xs sm:text-sm min-w-[280px]">
+                <thead>
+                  <tr className="text-left text-xs text-muted-foreground uppercase">
+                    <th className="pb-2">Vendedor</th><th className="pb-2">Mensagens</th><th className="pb-2">Score médio</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {(perSellerQ.data ?? []).map((s: any, i: number) => (
+                    <tr key={s.id} className="border-t border-border">
+                      <td className="py-2">{i === 0 && <Trophy size={12} className="inline mr-1 text-amber-500" />}{s.name}</td>
+                      <td className="py-2">{s.count}</td>
+                      <td className="py-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${scoreColor(s.avg)}`}>{Math.round(s.avg)}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
-        <div className="via-card">
-          <h2 className="text-lg font-bold mb-3">Agente IA</h2>
+        <div className="via-card min-w-0">
+          <h2 className="text-base sm:text-lg font-bold mb-3">Agente IA</h2>
           <div className="text-sm text-muted-foreground">Nenhum agente IA configurado ainda. (Roadmap)</div>
         </div>
       </section>
 
-      <section className="via-card">
+      <section className="via-card min-w-0">
         <div className="flex items-center justify-between gap-2 mb-3">
           <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
             <AlertTriangle size={18} className="text-amber-500" />
             Últimas saídas do padrão
           </h2>
           {(deviationsQ.data ?? []).length > 0 && (
-            <span className="text-[11px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full font-medium">
+            <span className="text-[11px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full font-medium shrink-0">
               Mostrando {Math.min(15, (deviationsQ.data ?? []).length)} (máx. 15)
             </span>
           )}
@@ -402,9 +406,9 @@ function CoachPage() {
         ) : (
           <ul className="divide-y divide-border/60">
             {(deviationsQ.data ?? []).slice(0, 15).map((d: any) => (
-              <li key={d.id} className="flex items-center justify-between gap-3 py-2 text-xs">
+              <li key={d.id} className="flex items-center justify-between gap-3 py-2 text-xs min-w-0">
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-medium line-clamp-1">
+                  <div className="text-xs font-medium truncate">
                     {d.suggestion || <span className="italic text-muted-foreground">sem sugestão</span>}
                   </div>
                   <div className="text-[10px] text-muted-foreground mt-0.5">
@@ -429,8 +433,8 @@ function CoachPage() {
         )}
       </section>
 
-      <section className="via-card">
-        <h2 className="text-lg font-bold mb-3">Notificações recentes</h2>
+      <section className="via-card min-w-0">
+        <h2 className="text-base sm:text-lg font-bold mb-3">Notificações recentes</h2>
         {(notifsQ.data ?? []).length === 0 ? (
           <div className="text-sm text-muted-foreground">Sem notificações.</div>
         ) : (
@@ -438,13 +442,13 @@ function CoachPage() {
             {(notifsQ.data ?? []).map((n: any) => {
               const convId = n.payload?.conversation_id;
               return (
-                <li key={n.id} className="flex items-start justify-between gap-3 border-b border-border pb-2">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{n.title}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(n.created_at).toLocaleString("pt-BR")}</div>
+                <li key={n.id} className="flex items-start justify-between gap-3 border-b border-border pb-2 min-w-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs sm:text-sm font-medium truncate">{n.title}</div>
+                    <div className="text-[10px] sm:text-xs text-muted-foreground">{new Date(n.created_at).toLocaleString("pt-BR")}</div>
                   </div>
                   {convId && (
-                    <Link to="/app/conversations/$id" params={{ id: convId }} className="text-xs text-[color:var(--via-blue)] hover:underline">
+                    <Link to="/app/conversations/$id" params={{ id: convId }} className="text-xs text-[color:var(--via-blue)] hover:underline shrink-0 whitespace-nowrap">
                       Abrir conversa
                     </Link>
                   )}
