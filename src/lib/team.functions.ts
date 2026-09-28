@@ -432,10 +432,152 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
   });
 
 /**
- * Retorna a URL base acessível na rede local (ex: http://192.168.x.x:8080)
- * para exibição e cópia de links seguros para acesso por outros dispositivos.
+ * Retorna a URL base acessível na rede local ou túnel.
  */
 export const getNetworkOrigin = createServerFn({ method: "GET" })
   .handler(async () => {
     return getAccessibleBaseUrl();
+  });
+
+/**
+ * Cadastra um novo membro da equipe diretamente com login e senha (sem depender de link de e-mail).
+ * Ideal para testes locais e para adicionar membros rapidamente.
+ */
+export const createTeamMemberDirectly = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { email: string; name: string; password: string; role: "admin" | "member" }) =>
+    z
+      .object({
+        email: z.string().email(),
+        name: z.string().min(1),
+        password: z.string().min(6),
+        role: z.enum(["admin", "member"]),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    if (!context.userId) throw new Error("Não autenticado.");
+    await assertAdmin(context.userId);
+
+    const cleanEmail = data.email.toLowerCase().trim();
+
+    // 1. Cria o usuário no Supabase Auth com confirmação automática de e-mail
+    const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+      email: cleanEmail,
+      password: data.password,
+      email_confirm: true,
+      user_metadata: {
+        display_name: data.name.trim(),
+      },
+    });
+
+    if (createErr || !newUser.user) {
+      if (createErr?.message.toLowerCase().includes("already")) {
+        throw new Error("Este e-mail já possui cadastro na instância.");
+      }
+      throw new Error(createErr?.message || "Erro ao cadastrar usuário.");
+    }
+
+    const userId = newUser.user.id;
+
+    // 2. Insere na tabela profiles
+    await supabaseAdmin
+      .from("profiles")
+      .upsert({
+        id: userId,
+        display_name: data.name.trim(),
+        role: data.role === "admin" ? "admin" : "user",
+      });
+
+    // 3. Insere na tabela user_roles
+    await supabaseAdmin
+      .from("user_roles")
+      .upsert({
+        user_id: userId,
+        role: data.role,
+      });
+
+    // 4. Remove qualquer convite pendente anterior para esse e-mail
+    await supabaseAdmin
+      .from("invites")
+      .delete()
+      .eq("email", cleanEmail);
+
+    return { ok: true, userId };
+  });
+
+/**
+ * Ativa diretamente um convite pendente definindo a senha do usuário
+ * sem exigir que o e-mail seja aberto em outro dispositivo.
+ */
+export const activateInviteDirectly = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { inviteId: string; password: string }) =>
+    z
+      .object({
+        inviteId: z.string().uuid(),
+        password: z.string().min(6),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    if (!context.userId) throw new Error("Não autenticado.");
+    await assertAdmin(context.userId);
+
+    const { data: invite, error: fetchErr } = await supabaseAdmin
+      .from("invites")
+      .select("*")
+      .eq("id", data.inviteId)
+      .single();
+
+    if (fetchErr || !invite) throw new Error("Convite não encontrado.");
+
+    const cleanEmail = invite.email.toLowerCase().trim();
+
+    // 1. Tenta criar o usuário com a senha definida
+    const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+      email: cleanEmail,
+      password: data.password,
+      email_confirm: true,
+      user_metadata: {
+        display_name: cleanEmail.split("@")[0],
+      },
+    });
+
+    let userId = newUser?.user?.id;
+
+    // Se já existia no auth, busca o ID e atualiza a senha
+    if (createErr) {
+      const { data: list } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+      const existing = list?.users?.find((u) => u.email?.toLowerCase() === cleanEmail);
+      if (existing) {
+        userId = existing.id;
+        await supabaseAdmin.auth.admin.updateUserById(userId, {
+          password: data.password,
+          email_confirm: true,
+        });
+      } else {
+        throw new Error(createErr.message);
+      }
+    }
+
+    if (userId) {
+      await supabaseAdmin.from("profiles").upsert({
+        id: userId,
+        display_name: cleanEmail.split("@")[0],
+        role: invite.role === "admin" ? "admin" : "user",
+      });
+
+      await supabaseAdmin.from("user_roles").upsert({
+        user_id: userId,
+        role: invite.role,
+      });
+
+      await supabaseAdmin
+        .from("invites")
+        .update({ accepted_at: new Date().toISOString() })
+        .eq("id", invite.id);
+    }
+
+    return { ok: true, email: cleanEmail };
   });

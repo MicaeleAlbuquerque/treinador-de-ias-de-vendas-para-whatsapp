@@ -9,6 +9,8 @@ import {
   removeTeamMember,
   inviteTeamMember,
   getNetworkOrigin,
+  createTeamMemberDirectly,
+  activateInviteDirectly,
   type TeamMember,
 } from "@/lib/team.functions";
 import { toast } from "sonner";
@@ -20,6 +22,9 @@ import {
   UserCheck,
   RefreshCw,
   Globe,
+  KeyRound,
+  UserPlus,
+  Check,
 } from "lucide-react";
 import { Field } from "./auth.sign-in";
 
@@ -147,6 +152,35 @@ function TeamPage() {
 
     toast.success("Convite revogado.");
     qc.invalidateQueries({ queryKey: ["invites"] });
+  }
+
+  const activateInviteFn = useServerFn(activateInviteDirectly);
+  const [activatingInviteId, setActivatingInviteId] = useState<string | null>(null);
+  const [activationPassword, setActivationPassword] = useState("Senha123*");
+  const [activatingBusy, setActivatingBusy] = useState(false);
+
+  async function handleConfirmActivate(inviteId: string) {
+    if (activationPassword.length < 6) {
+      toast.error("A senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+    setActivatingBusy(true);
+    try {
+      const res = await activateInviteFn({
+        data: {
+          inviteId,
+          password: activationPassword,
+        },
+      });
+      toast.success(`Conta de ${res.email} ativada com sucesso! Senha configurada.`);
+      setActivatingInviteId(null);
+      qc.invalidateQueries({ queryKey: ["invites"] });
+      qc.invalidateQueries({ queryKey: ["members"] });
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao ativar convite.");
+    } finally {
+      setActivatingBusy(false);
+    }
   }
 
   return (
@@ -322,46 +356,111 @@ function TeamPage() {
             {invitesQuery.data.map((i) => (
               <li
                 key={i.id}
-                className="flex items-center justify-between py-3 gap-3"
+                className="py-3"
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Mail
-                    size={14}
-                    className="text-muted-foreground shrink-0"
-                  />
+                <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Mail
+                      size={14}
+                      className="text-muted-foreground shrink-0"
+                    />
 
-                  <div className="min-w-0">
-                    <div className="text-sm truncate font-medium">{i.email}</div>
+                    <div className="min-w-0">
+                      <div className="text-sm truncate font-medium">{i.email}</div>
 
-                    <div className="text-xs text-muted-foreground">
-                      Expira em{" "}
-                      {new Date(i.expires_at).toLocaleDateString("pt-BR")}
+                      <div className="text-xs text-muted-foreground">
+                        Expira em{" "}
+                        {new Date(i.expires_at).toLocaleDateString("pt-BR")}
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(inviteUrl(i.token, networkOriginQ.data));
+                        toast.success("Link do convite copiado!");
+                      }}
+                      className="via-btn via-btn-secondary via-btn-sm text-xs"
+                      title="Copiar link completo de aceite"
+                    >
+                      <Copy size={12} /> Copiar link
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(i.token);
+                        toast.success("Código do convite copiado!");
+                      }}
+                      className="via-btn via-btn-secondary via-btn-sm text-xs"
+                      title="Copiar apenas o código do convite"
+                    >
+                      Código
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivatingInviteId(activatingInviteId === i.id ? null : i.id);
+                        setActivationPassword("Senha123*");
+                      }}
+                      className="via-btn via-btn-secondary via-btn-sm text-xs text-primary font-medium"
+                      title="Ativar conta imediatamente sem depender de link de e-mail"
+                    >
+                      <KeyRound size={12} /> Ativar agora
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => revokeInvite(i.id)}
+                      className="p-1.5 text-muted-foreground hover:text-[color:var(--via-danger)] hover:bg-[color:var(--via-danger)]/10 rounded-md transition-colors"
+                      title="Revogar convite"
+                      aria-label="Revogar"
+                    >
+                      <Trash2 size={16} strokeWidth={1.75} />
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(inviteUrl(i.token, networkOriginQ.data));
-                      toast.success("Link do convite copiado!");
-                    }}
-                    className="via-btn via-btn-secondary via-btn-sm"
-                  >
-                    <Copy size={12} /> Copiar link
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => revokeInvite(i.id)}
-                    className="p-1.5 text-muted-foreground hover:text-[color:var(--via-danger)] hover:bg-[color:var(--via-danger)]/10 rounded-md transition-colors"
-                    title="Revogar convite"
-                    aria-label="Revogar"
-                  >
-                    <Trash2 size={16} strokeWidth={1.75} />
-                  </button>
-                </div>
+                {activatingInviteId === i.id && (
+                  <div className="mt-3 p-3 rounded-lg bg-secondary/60 border border-border space-y-2">
+                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <KeyRound size={13} className="text-primary" />
+                      Ativação Imediata da Conta ({i.email})
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Defina uma senha de acesso. O usuário será ativado instantaneamente e poderá logar imediatamente por e-mail e senha.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2 items-center pt-1">
+                      <input
+                        type="text"
+                        value={activationPassword}
+                        onChange={(e) => setActivationPassword(e.target.value)}
+                        placeholder="Senha de acesso (mínimo 6 caracteres)"
+                        className="via-input text-xs w-full font-mono py-1.5"
+                      />
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmActivate(i.id)}
+                          disabled={activatingBusy}
+                          className="via-btn via-btn-primary via-btn-sm text-xs whitespace-nowrap"
+                        >
+                          {activatingBusy ? "Ativando…" : "Confirmar e Ativar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActivatingInviteId(null)}
+                          className="via-btn via-btn-secondary via-btn-sm text-xs"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -374,12 +473,29 @@ function TeamPage() {
 function InviteForm() {
   const qc = useQueryClient();
   const inviteMemberFn = useServerFn(inviteTeamMember);
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
+  const createDirectFn = useServerFn(createTeamMemberDirectly);
 
-  async function handleSubmit(e: FormEvent) {
+  const [tab, setTab] = useState<"invite" | "direct">("invite");
+
+  // Invite state
+  const [email, setEmail] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(false);
+
+  // Direct state
+  const [name, setName] = useState("");
+  const [directEmail, setDirectEmail] = useState("");
+  const [password, setPassword] = useState("Senha123*");
+  const [role, setRole] = useState<"member" | "admin">("member");
+  const [directLoading, setDirectLoading] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    email: string;
+    pass: string;
+    role: string;
+  } | null>(null);
+
+  async function handleInviteSubmit(e: FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setInviteLoading(true);
 
     try {
       const cleanEmail = email.toLowerCase().trim();
@@ -419,36 +535,192 @@ function InviteForm() {
       console.error("Erro inesperado:", error);
       toast.error(error?.message || "Ocorreu um erro inesperado ao processar convite.");
     } finally {
-      setLoading(false);
+      setInviteLoading(false);
+    }
+  }
+
+  async function handleDirectSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!directEmail || !name || !password) {
+      toast.error("Preencha todos os campos.");
+      return;
+    }
+    if (password.length < 6) {
+      toast.error("A senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+    setDirectLoading(true);
+
+    try {
+      await createDirectFn({
+        data: {
+          name: name.trim(),
+          email: directEmail.toLowerCase().trim(),
+          password,
+          role,
+        },
+      });
+
+      setCreatedCredentials({
+        email: directEmail.toLowerCase().trim(),
+        pass: password,
+        role: role === "admin" ? "Administrador" : "Membro",
+      });
+
+      toast.success("Membro cadastrado e ativado com sucesso!");
+      setName("");
+      setDirectEmail("");
+      setPassword("Senha123*");
+      qc.invalidateQueries({ queryKey: ["members"] });
+      qc.invalidateQueries({ queryKey: ["invites"] });
+    } catch (err: any) {
+      console.error("Erro ao cadastrar membro diretamente:", err);
+      toast.error(err?.message || "Erro ao cadastrar membro.");
+    } finally {
+      setDirectLoading(false);
     }
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="via-card flex flex-col gap-4 sm:flex-row sm:items-end"
-    >
-      <div className="flex-1">
-        <Field
-          label="Convidar novo membro por e-mail"
-          type="email"
-          value={email}
-          onChange={setEmail}
-          required
-        />
+    <div className="via-card space-y-4">
+      {/* Abas */}
+      <div className="flex items-center gap-2 border-b border-border pb-3">
+        <button
+          type="button"
+          onClick={() => setTab("invite")}
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-all ${
+            tab === "invite"
+              ? "bg-primary text-primary-foreground shadow-xs"
+              : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+          }`}
+        >
+          <Mail size={13} />
+          Convidar por E-mail / Link
+        </button>
 
-        <p className="mt-1 text-xs text-muted-foreground">
-          O convidado terá acesso administrativo completo. Se o envio de e-mail falhar, o link será copiado automaticamente.
-        </p>
+        <button
+          type="button"
+          onClick={() => setTab("direct")}
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-all ${
+            tab === "direct"
+              ? "bg-primary text-primary-foreground shadow-xs"
+              : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+          }`}
+        >
+          <UserPlus size={13} />
+          Cadastrar Imediatamente (Sem E-mail)
+        </button>
       </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="via-btn via-btn-primary shrink-0"
-      >
-        {loading ? "Enviando…" : "Convidar"}
-      </button>
-    </form>
+      {tab === "invite" ? (
+        <form
+          onSubmit={handleInviteSubmit}
+          className="flex flex-col gap-4 sm:flex-row sm:items-end"
+        >
+          <div className="flex-1">
+            <Field
+              label="Convidar novo membro por e-mail"
+              type="email"
+              value={email}
+              onChange={setEmail}
+              placeholder="ex: colega@empresa.com"
+              required
+            />
+
+            <p className="mt-1 text-xs text-muted-foreground">
+              O convite é enviado por e-mail e o link exclusivo é copiado automaticamente para compartilhamento manual.
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            disabled={inviteLoading}
+            className="via-btn via-btn-primary shrink-0"
+          >
+            {inviteLoading ? "Enviando…" : "Convidar"}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={handleDirectSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <Field
+              label="Nome Completo"
+              type="text"
+              value={name}
+              onChange={setName}
+              placeholder="ex: João Silva"
+              required
+            />
+            <Field
+              label="E-mail de Login"
+              type="email"
+              value={directEmail}
+              onChange={setDirectEmail}
+              placeholder="ex: joao@empresa.com"
+              required
+            />
+            <Field
+              label="Senha Inicial"
+              type="text"
+              value={password}
+              onChange={setPassword}
+              placeholder="Senha de acesso"
+              required
+            />
+            <div>
+              <label className="text-xs font-medium text-foreground block mb-1.5">
+                Papel na Equipe
+              </label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as "member" | "admin")}
+                className="via-input text-xs w-full py-2"
+              >
+                <option value="member">Membro</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
+            <p className="text-xs text-muted-foreground">
+              O membro é ativado imediatamente na base de dados, sem depender de SMTP ou validação de links por e-mail.
+            </p>
+            <button
+              type="submit"
+              disabled={directLoading}
+              className="via-btn via-btn-primary shrink-0 text-xs"
+            >
+              {directLoading ? "Cadastrando…" : "Cadastrar Membro Agora"}
+            </button>
+          </div>
+
+          {createdCredentials && (
+            <div className="p-3.5 rounded-lg border border-primary/20 bg-primary/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="text-xs space-y-1">
+                <div className="font-semibold text-foreground flex items-center gap-1.5 text-primary">
+                  <Check size={14} /> Membro cadastrado com sucesso!
+                </div>
+                <div className="text-muted-foreground font-mono text-[11px]">
+                  E-mail: <strong className="text-foreground">{createdCredentials.email}</strong> | Senha: <strong className="text-foreground">{createdCredentials.pass}</strong> ({createdCredentials.role})
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `Acesso ao Treinador de Vendas:\nE-mail: ${createdCredentials.email}\nSenha: ${createdCredentials.pass}\nURL: ${window.location.origin}/auth/sign-in`
+                  );
+                  toast.success("Credenciais copiadas!");
+                }}
+                className="via-btn via-btn-secondary via-btn-sm text-xs shrink-0"
+              >
+                <Copy size={12} /> Copiar Credenciais
+              </button>
+            </div>
+          )}
+        </form>
+      )}
+    </div>
   );
 }

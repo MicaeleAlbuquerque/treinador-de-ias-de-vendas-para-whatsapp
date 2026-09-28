@@ -8,16 +8,27 @@ Apenas usuários com papel **admin** podem criar e gerenciar convites.
 
 ## Como funciona
 
+### Opção 1: Convidar por E-mail / Link
 1. Acesse o menu **Equipe** (`/app/team`).
-2. Digite o e-mail do colaborador no campo de convite.
+2. Na aba **Convidar por E-mail / Link**, digite o e-mail do colaborador.
 3. Clique em **Enviar convite**.
 4. O sistema dispara o e-mail de acesso automaticamente através do serviço de autenticação (Supabase Auth SMTP) e copia o link exclusivo para a área de transferência como garantia.
-5. Você também pode clicar em **Copiar link** a qualquer momento na lista de convites pendentes para repassar pelo WhatsApp ou Slack.
+5. Você também pode clicar em **Copiar link** ou **Código** a qualquer momento na lista de convites pendentes para repassar pelo WhatsApp ou Slack.
 
-## Acesso em múltiplos aparelhos e rede local
+### Opção 2: Cadastrar Membro Imediatamente (Sem E-mail)
+1. Acesse o menu **Equipe** (`/app/team`).
+2. Selecione a aba **Cadastrar Imediatamente (Sem E-mail)**.
+3. Preencha o Nome, E-mail de login, Senha inicial e o papel (Membro ou Administrador).
+4. Clique em **Cadastrar Membro Agora**.
+5. O colaborador é ativado instantaneamente no banco de dados e as credenciais são exibidas na tela com um botão **Copiar Credenciais**. Ele pode fazer login imediatamente em qualquer aparelho (celular, tablet ou PC) sem depender de links ou e-mails.
 
-Ao testar a aplicação em ambiente de desenvolvimento local, o sistema detecta de forma inteligente o endereço de rede local (IP da sua máquina na rede Wi-Fi/Ethernet) ao gerar o link:
-- Isso permite que o colaborador (ou você mesmo) abra o link do e-mail diretamente pelo **smartphone ou outro computador na mesma rede Wi-Fi**, sem sofrer com erros de `localhost` recusado ou páginas em branco.
+## Acesso em múltiplos aparelhos e rede
+
+Ao trabalhar em desenvolvimento ou testar em smartphones:
+- **Login Direto**: Ao usar o cadastro imediato ou a ativação direta, o usuário acessa normalmente a tela de login (`/auth/sign-in`) a partir de qualquer dispositivo.
+- **Ativar convite pendente na hora**: Na lista de convites pendentes, o administrador pode clicar em **Ativar agora**, definir a senha e liberar o acesso do colaborador na mesma hora.
+- **Recuperação de código**: Caso o link seja aberto em outro aparelho e a URL venha truncada, a tela de aceite disponibiliza um campo para colar o código ou link do convite manualmente.
+- **Túnel para testes remotos**: Para expor a aplicação em HTTPS público para qualquer celular fora da rede, execute `npm run tunnel` e configure a variável `PUBLIC_BASE_URL` no `.env`.
 
 ## Aceitando o convite
 

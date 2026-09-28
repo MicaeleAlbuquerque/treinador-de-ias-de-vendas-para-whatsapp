@@ -165,22 +165,64 @@ function AcceptInvitePage() {
     }
   }
 
+  const [manualCode, setManualCode] = useState("");
+
+  function handleManualSubmit(e: FormEvent) {
+    e.preventDefault();
+    const raw = manualCode.trim();
+    if (!raw) return;
+
+    // Se o usuário colou a URL completa, extrai a última parte
+    let clean = raw;
+    if (clean.includes("/accept-invite/")) {
+      const parts = clean.split("/accept-invite/");
+      clean = parts[parts.length - 1].split(/[?#]/)[0].trim();
+    } else if (clean.includes("/")) {
+      const parts = clean.split("/");
+      clean = parts[parts.length - 1].split(/[?#]/)[0].trim();
+    }
+
+    if (!clean || clean === "null" || clean === "undefined") {
+      toast.error("Código de convite inválido.");
+      return;
+    }
+
+    navigate({ to: `/accept-invite/${clean}` });
+  }
+
   // Token inválido na URL
   if (isInvalidToken) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
         <Logo className="h-7 mb-8" />
-        <div className="via-card max-w-md w-full text-center space-y-4">
+        <div className="via-card max-w-md w-full space-y-4">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
             <AlertTriangle size={24} />
           </div>
-          <h1 className="text-xl font-bold">Convite não encontrado</h1>
-          <p className="text-sm text-muted-foreground">
-            O link de convite acessado está incompleto ou inválido. Verifique o link enviado pelo administrador da equipe.
-          </p>
-          <div className="pt-2">
-            <Link to="/auth/sign-in" className="via-btn via-btn-primary w-full block text-center">
-              Fazer login
+          <div className="text-center">
+            <h1 className="text-xl font-bold">Convite não identificado</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              O link de convite acessado está incompleto ou inválido. Se você recebeu o código ou o link do administrador, cole abaixo:
+            </p>
+          </div>
+
+          <form onSubmit={handleManualSubmit} className="space-y-3 pt-2">
+            <Field
+              label="Código ou Link do Convite"
+              type="text"
+              value={manualCode}
+              onChange={setManualCode}
+              placeholder="Cole o código ou o link aqui"
+              required
+            />
+            <button type="submit" className="via-btn via-btn-primary w-full">
+              Continuar com este código
+            </button>
+          </form>
+
+          <div className="pt-2 text-center border-t border-border">
+            <Link to="/auth/sign-in" className="via-btn via-btn-secondary w-full block text-center text-xs">
+              Ir para tela de login
             </Link>
           </div>
         </div>

@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "tunnel": "npx localtunnel --port 8080"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
