@@ -508,24 +508,29 @@ export function SimulationArena({ sellers, onFinishedSession }: SimulationArenaP
     return (
       <div className="space-y-3 sm:space-y-4 max-w-full overflow-x-hidden">
         {/* Header do Chat */}
-        <div className="via-card p-2.5 sm:p-3 bg-card border-border flex items-center justify-between gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+        <div className="via-card p-3 sm:p-3.5 bg-card border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="relative shrink-0">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+              <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
                 {leadName.slice(0, 2).toUpperCase() || "LE"}
               </div>
-              <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 border-2 border-background" />
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-background" />
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-bold text-xs sm:text-sm truncate">{leadName}</span>
-                <span className="text-[10px] rounded bg-muted px-1.5 py-0.2 text-muted-foreground font-medium truncate max-w-[100px] sm:max-w-none">
-                  {selectedPersona === "random" ? "🎲 Oculta" : PERSONAS_CONFIG.find((p) => p.id === selectedPersona)?.badge}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-sm sm:text-base text-foreground">
+                  {leadName}
+                </span>
+                <span className="text-xs rounded-full bg-muted/80 px-2.5 py-0.5 text-muted-foreground font-medium border border-border/50">
+                  {selectedPersona === "random"
+                    ? "🎲 Personalidade Oculta"
+                    : PERSONAS_CONFIG.find((p) => p.id === selectedPersona)?.title || "Lead"}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                  {sending ? "Digitando…" : "Online"}
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {sending ? "Lead está digitando…" : "Online no WhatsApp"}
                 </span>
                 <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-muted-foreground/80 bg-muted/60 px-1.5 py-0.2 rounded border border-border/40">
                   <CheckCircle2 size={10} className="text-emerald-500" /> Salvo auto
@@ -534,12 +539,12 @@ export function SimulationArena({ sellers, onFinishedSession }: SimulationArenaP
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
             <button
               type="button"
               onClick={handleDiscardAndExit}
               disabled={finishing || discarding}
-              className="inline-flex items-center justify-center gap-1 rounded-md border border-border/80 bg-background/80 hover:bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border/80 bg-background/80 hover:bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               title="Voltar para a área de treinamento sem salvar no histórico"
             >
               <ArrowLeft size={13} />
@@ -549,7 +554,7 @@ export function SimulationArena({ sellers, onFinishedSession }: SimulationArenaP
               type="button"
               onClick={handleFinish}
               disabled={finishing || discarding}
-              className={`inline-flex items-center justify-center gap-1.5 rounded-md bg-primary hover:bg-primary/90 px-2.5 sm:px-3 py-1 text-xs font-semibold text-primary-foreground shadow-xs transition-all disabled:opacity-50 whitespace-nowrap ${
+              className={`inline-flex items-center justify-center gap-1.5 rounded-md bg-primary hover:bg-primary/90 px-3.5 py-1.5 text-xs font-semibold text-primary-foreground shadow-xs transition-all disabled:opacity-50 whitespace-nowrap ${
                 messages.length < 2 ? "opacity-80" : ""
               }`}
               title={messages.length < 2 ? "Envie pelo menos 1 resposta antes de avaliar" : "Encerrar e gerar avaliação com IA"}
