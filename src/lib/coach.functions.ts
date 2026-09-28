@@ -124,7 +124,7 @@ export const getCoachDeviations = createServerFn({ method: "GET" })
       .select("id, score, suggestion, conversation_id, message_id, created_at")
       .lt("score", threshold)
       .order("created_at", { ascending: false })
-      .limit(30);
+      .limit(15);
 
     return data ?? [];
   });

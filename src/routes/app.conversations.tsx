@@ -454,13 +454,24 @@ function ConversationsList() {
         <div className="flex-1 min-w-[200px]">
           <label className="via-label">Buscar</label>
           <div className="relative mt-1">
-            <Search className="absolute left-2 top-2.5 text-muted-foreground" size={14} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={16} />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Telefone, vendedor, lead…"
-              className="via-input pl-8"
+              className="via-input via-input-search !pl-9 pr-8"
+              style={{ paddingLeft: "2.35rem" }}
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                title="Limpar busca"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
         </div>
         <Selector label="Vendedor" value={filterSeller} onChange={setFilterSeller}>
@@ -836,14 +847,25 @@ function ConversationsList() {
 
                   {/* Campo de busca no modal */}
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 text-muted-foreground" size={14} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={14} />
                     <input
                       type="text"
                       value={modalSearch}
                       onChange={(e) => setModalSearch(e.target.value)}
                       placeholder="Buscar por lead, telefone ou vendedor nesta lista…"
-                      className="via-input pl-8 py-1.5 text-xs w-full"
+                      className="via-input via-input-search !pl-9 pr-7 py-1.5 text-xs w-full"
+                      style={{ paddingLeft: "2.25rem" }}
                     />
+                    {modalSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setModalSearch("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                        title="Limpar busca"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
                   </div>
 
                   {/* Lista com scroll e checkboxes individuais */}

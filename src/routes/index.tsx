@@ -14,13 +14,12 @@ function RootRedirect() {
     if (typeof window !== "undefined") {
       const hash = window.location.hash || "";
       const search = window.location.search || "";
-      if (
+      const isRecovery =
         hash.includes("type=recovery") ||
         search.includes("type=recovery") ||
-        (hash.includes("access_token=") && hash.includes("refresh_token=")) ||
-        search.includes("token_hash=") ||
-        search.includes("code=")
-      ) {
+        search.includes("token_hash=");
+
+      if (isRecovery) {
         window.location.href = `/auth/reset-password${search}${hash}`;
         return;
       }

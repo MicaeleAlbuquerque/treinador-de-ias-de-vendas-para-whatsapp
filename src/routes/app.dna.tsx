@@ -20,6 +20,62 @@ import { triggerPlaybookGenerate, getCurrentPlaybook, listPlaybookHistory, getPl
 export const Route = createFileRoute("/app/dna")({ component: DnaPage });
 
 type Tab = "ranking" | "stages" | "objections" | "antipatterns";
+type TierFilter = "all" | "tier1" | "tier2";
+
+function TierFilterNav({
+  filter,
+  onChange,
+}: {
+  filter: TierFilter;
+  onChange: (f: TierFilter) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/40 p-1.5 rounded-xl border border-border">
+      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+        <button
+          type="button"
+          onClick={() => onChange("all")}
+          className={`flex-1 sm:flex-none px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            filter === "all"
+              ? "bg-background text-foreground shadow-sm border border-border/80"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Todos os Tiers
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("tier1")}
+          className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            filter === "tier1"
+              ? "bg-background text-[color:var(--via-blue)] shadow-sm border border-border/80"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
+          Tier 1 · Análise Básica
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("tier2")}
+          className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            filter === "tier2"
+              ? "bg-background text-purple-600 dark:text-purple-400 shadow-sm border border-border/80"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-purple-500 inline-block"></span>
+          Tier 2 · Análise Avançada
+        </button>
+      </div>
+      <div className="text-[11px] text-muted-foreground px-2 hidden sm:block">
+        {filter === "tier1" && "Exibindo Playbook e Análise de Qualidade IA (sem necessidade de CRM)"}
+        {filter === "tier2" && "Exibindo DNA do Time, Ranking de Vendedores e Antipadrões"}
+        {filter === "all" && "Exibindo visão integrada de todos os módulos de DNA"}
+      </div>
+    </div>
+  );
+}
 
 function DnaPage() {
   const qc = useQueryClient();
@@ -44,6 +100,24 @@ function DnaPage() {
   const [viewingSnapshotId, setViewingSnapshotId] = useState<string | null>(null);
 
   const [tab, setTab] = useState<Tab>("ranking");
+  const [tierFilter, setTierFilter] = useState<TierFilter>(() => {
+    try {
+      if (typeof window !== "undefined") {
+        return (localStorage.getItem("via-dna-tier-filter") as TierFilter) || "all";
+      }
+    } catch {}
+    return "all";
+  });
+
+  const handleTierFilterChange = (f: TierFilter) => {
+    setTierFilter(f);
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("via-dna-tier-filter", f);
+      }
+    } catch {}
+  };
+
   const [generatingPlaybook, setGeneratingPlaybook] = useState(false);
   const [recalculatingDna, setRecalculatingDna] = useState(false);
   const [evaluatingQuality, setEvaluatingQuality] = useState(false);
@@ -236,53 +310,63 @@ function DnaPage() {
       <div className="space-y-6">
         <header><span className="via-label">DNA</span><h1 className="mt-1 text-3xl">Motor de análise</h1></header>
 
-        <TierBanner level="basic" />
-        <PlaybookPanel
-          playbook={displayedPlaybook}
-          loading={displayedLoading}
-          generating={generatingPlaybook}
-          saving={savingPlaybookEdit}
-          restoringVersionId={restoringVersionId}
-          onGenerate={runPlaybookGenerate}
-          totalConversations={qualityStatsQ.data?.total ?? 0}
-          qualityEvaluated={qualityStatsQ.data?.evaluated ?? 0}
-          history={(playbookHistoryQ.data as any)?.items ?? []}
-          activeSnapshotId={activeSnapshotId}
-          viewingSnapshotId={viewingSnapshotId}
-          onSelectVersion={setViewingSnapshotId}
-          onRestoreVersion={restorePlaybookVersion}
-          onSaveEdit={savePlaybookEditHandler}
-        />
-        <QualityScorePanel
-          stats={qualityStatsQ.data}
-          evaluating={evaluatingQuality}
-          toggling={togglingQuality}
-          onRun={runQualityBatch}
-          onToggleUseQuality={toggleUseQuality}
-          useQuality={settingsQ.data?.dna_use_quality_score !== false}
-          minGood={settingsQ.data?.dna_quality_min_good ?? 75}
-          maxBad={settingsQ.data?.dna_quality_max_bad ?? 40}
-        />
+        <TierFilterNav filter={tierFilter} onChange={handleTierFilterChange} />
 
-        <TierBanner level="advanced" />
-        <div className="via-card text-center py-10 space-y-3">
-          <Sparkles className="mx-auto text-muted-foreground" />
-          <div className="text-sm text-muted-foreground max-w-xl mx-auto space-y-2">
-            <p>
-              <strong>DNA Avançado do Time</strong> ainda não calculado. Esta análise faz ranking de vendedores e
-              extrai padrões de quem ganha vs quem perde — requer pelo menos {settingsQ.data?.dna_min_won ?? 10} conversas
-              "boas", {settingsQ.data?.dna_min_lost ?? 5} "fracas" e {settingsQ.data?.dna_min_sellers ?? 3} vendedores envolvidos.
-            </p>
-            <p className="text-xs">
-              Como liberar: marcar Won/Lost manualmente, conectar Pipedrive, ou ativar a "Análise IA" acima (vira proxy de outcome).
-            </p>
+        {(tierFilter === "all" || tierFilter === "tier1") && (
+          <div className="space-y-6">
+            <TierBanner level="basic" />
+            <PlaybookPanel
+              playbook={displayedPlaybook}
+              loading={displayedLoading}
+              generating={generatingPlaybook}
+              saving={savingPlaybookEdit}
+              restoringVersionId={restoringVersionId}
+              onGenerate={runPlaybookGenerate}
+              totalConversations={qualityStatsQ.data?.total ?? 0}
+              qualityEvaluated={qualityStatsQ.data?.evaluated ?? 0}
+              history={(playbookHistoryQ.data as any)?.items ?? []}
+              activeSnapshotId={activeSnapshotId}
+              viewingSnapshotId={viewingSnapshotId}
+              onSelectVersion={setViewingSnapshotId}
+              onRestoreVersion={restorePlaybookVersion}
+              onSaveEdit={savePlaybookEditHandler}
+            />
+            <QualityScorePanel
+              stats={qualityStatsQ.data}
+              evaluating={evaluatingQuality}
+              toggling={togglingQuality}
+              onRun={runQualityBatch}
+              onToggleUseQuality={toggleUseQuality}
+              useQuality={settingsQ.data?.dna_use_quality_score !== false}
+              minGood={settingsQ.data?.dna_quality_min_good ?? 75}
+              maxBad={settingsQ.data?.dna_quality_max_bad ?? 40}
+            />
           </div>
-          {isAdmin && (
-            <button disabled={recalculatingDna} onClick={recalc} className="via-btn via-btn-secondary">
-              {recalculatingDna ? "Calculando…" : "Tentar calcular DNA Avançado"}
-            </button>
-          )}
-        </div>
+        )}
+
+        {(tierFilter === "all" || tierFilter === "tier2") && (
+          <div className="space-y-6">
+            <TierBanner level="advanced" />
+            <div className="via-card text-center py-10 space-y-3">
+              <Sparkles className="mx-auto text-muted-foreground" />
+              <div className="text-sm text-muted-foreground max-w-xl mx-auto space-y-2">
+                <p>
+                  <strong>DNA Avançado do Time</strong> ainda não calculado. Esta análise faz ranking de vendedores e
+                  extrai padrões de quem ganha vs quem perde — requer pelo menos {settingsQ.data?.dna_min_won ?? 10} conversas
+                  "boas", {settingsQ.data?.dna_min_lost ?? 5} "fracas" e {settingsQ.data?.dna_min_sellers ?? 3} vendedores envolvidos.
+                </p>
+                <p className="text-xs">
+                  Como liberar: marcar Won/Lost manualmente, conectar Pipedrive, ou ativar a "Análise IA" acima (vira proxy de outcome).
+                </p>
+              </div>
+              {isAdmin && (
+                <button disabled={recalculatingDna} onClick={recalc} className="via-btn via-btn-secondary">
+                  {recalculatingDna ? "Calculando…" : "Tentar calcular DNA Avançado"}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -302,47 +386,55 @@ function DnaPage() {
         <h1 className="mt-1 text-3xl">Motor de análise</h1>
       </header>
 
-      <TierBanner level="basic" />
-      <PlaybookPanel
-        playbook={displayedPlaybook}
-        loading={displayedLoading}
-        generating={generatingPlaybook}
-        saving={savingPlaybookEdit}
-        restoringVersionId={restoringVersionId}
-        onGenerate={runPlaybookGenerate}
-        totalConversations={qualityStatsQ.data?.total ?? 0}
-        qualityEvaluated={qualityStatsQ.data?.evaluated ?? 0}
-        history={(playbookHistoryQ.data as any)?.items ?? []}
-        activeSnapshotId={activeSnapshotId}
-        viewingSnapshotId={viewingSnapshotId}
-        onSelectVersion={setViewingSnapshotId}
-        onRestoreVersion={restorePlaybookVersion}
-        onSaveEdit={savePlaybookEditHandler}
-      />
-      <QualityScorePanel
-        stats={qualityStatsQ.data}
-        evaluating={evaluatingQuality}
-        toggling={togglingQuality}
-        onRun={runQualityBatch}
-        onToggleUseQuality={toggleUseQuality}
-        useQuality={settingsQ.data?.dna_use_quality_score !== false}
-        minGood={settingsQ.data?.dna_quality_min_good ?? 75}
-        maxBad={settingsQ.data?.dna_quality_max_bad ?? 40}
-      />
+      <TierFilterNav filter={tierFilter} onChange={handleTierFilterChange} />
 
-      <TierBanner level="advanced" />
-      <div className="via-card space-y-2">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-lg">DNA Avançado do Time — Snapshot atual</h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              {snapQ.data ? `Criado em ${new Date(snapQ.data.created_at).toLocaleString("pt-BR")} · ${snapQ.data.total_conversations_analyzed} conversas analisadas` : ""}
-              · Top performer: <strong>{topName}</strong>
-            </p>
-          </div>
-          {isAdmin && <button disabled={recalculatingDna} onClick={recalc} className="via-btn via-btn-secondary">{recalculatingDna ? "Calculando…" : "Recalcular DNA"}</button>}
+      {(tierFilter === "all" || tierFilter === "tier1") && (
+        <div className="space-y-6">
+          <TierBanner level="basic" />
+          <PlaybookPanel
+            playbook={displayedPlaybook}
+            loading={displayedLoading}
+            generating={generatingPlaybook}
+            saving={savingPlaybookEdit}
+            restoringVersionId={restoringVersionId}
+            onGenerate={runPlaybookGenerate}
+            totalConversations={qualityStatsQ.data?.total ?? 0}
+            qualityEvaluated={qualityStatsQ.data?.evaluated ?? 0}
+            history={(playbookHistoryQ.data as any)?.items ?? []}
+            activeSnapshotId={activeSnapshotId}
+            viewingSnapshotId={viewingSnapshotId}
+            onSelectVersion={setViewingSnapshotId}
+            onRestoreVersion={restorePlaybookVersion}
+            onSaveEdit={savePlaybookEditHandler}
+          />
+          <QualityScorePanel
+            stats={qualityStatsQ.data}
+            evaluating={evaluatingQuality}
+            toggling={togglingQuality}
+            onRun={runQualityBatch}
+            onToggleUseQuality={toggleUseQuality}
+            useQuality={settingsQ.data?.dna_use_quality_score !== false}
+            minGood={settingsQ.data?.dna_quality_min_good ?? 75}
+            maxBad={settingsQ.data?.dna_quality_max_bad ?? 40}
+          />
         </div>
-      </div>
+      )}
+
+      {(tierFilter === "all" || tierFilter === "tier2") && (
+        <div className="space-y-6">
+          <TierBanner level="advanced" />
+          <div className="via-card space-y-2">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-lg">DNA Avançado do Time — Snapshot atual</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {snapQ.data ? `Criado em ${new Date(snapQ.data.created_at).toLocaleString("pt-BR")} · ${snapQ.data.total_conversations_analyzed} conversas analisadas` : ""}
+                  · Top performer: <strong>{topName}</strong>
+                </p>
+              </div>
+              {isAdmin && <button disabled={recalculatingDna} onClick={recalc} className="via-btn via-btn-secondary">{recalculatingDna ? "Calculando…" : "Recalcular DNA"}</button>}
+            </div>
+          </div>
 
       <div className="flex gap-2 border-b border-border">
         {tabs.map((t) => (
@@ -523,6 +615,8 @@ function DnaPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
         </div>
       )}
     </div>

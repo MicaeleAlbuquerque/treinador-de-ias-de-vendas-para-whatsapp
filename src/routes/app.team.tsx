@@ -8,6 +8,7 @@ import {
   listTeamMembers,
   removeTeamMember,
   inviteTeamMember,
+  getNetworkOrigin,
   type TeamMember,
 } from "@/lib/team.functions";
 import { toast } from "sonner";
@@ -18,6 +19,7 @@ import {
   ShieldCheck,
   UserCheck,
   RefreshCw,
+  Globe,
 } from "lucide-react";
 import { Field } from "./auth.sign-in";
 
@@ -33,8 +35,9 @@ type Invite = {
   accepted_at: string | null;
 };
 
-function inviteUrl(token: string) {
-  return `${window.location.origin}/accept-invite/${token}`;
+function inviteUrl(token: string, baseOrigin?: string) {
+  const origin = baseOrigin || window.location.origin;
+  return `${origin}/accept-invite/${token}`;
 }
 
 function TeamPage() {
@@ -42,6 +45,20 @@ function TeamPage() {
   const { user: currentUser } = useAuth();
   const listMembersFn = useServerFn(listTeamMembers);
   const removeMemberFn = useServerFn(removeTeamMember);
+  const getNetworkOriginFn = useServerFn(getNetworkOrigin);
+
+  const networkOriginQ = useQuery({
+    queryKey: ["network-origin"],
+    queryFn: async () => {
+      try {
+        const res = await getNetworkOriginFn({});
+        return res || window.location.origin;
+      } catch {
+        return window.location.origin;
+      }
+    },
+    staleTime: 60000,
+  });
 
   const membersQuery = useQuery({
     queryKey: ["members"],
@@ -327,7 +344,7 @@ function TeamPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      navigator.clipboard.writeText(inviteUrl(i.token));
+                      navigator.clipboard.writeText(inviteUrl(i.token, networkOriginQ.data));
                       toast.success("Link do convite copiado!");
                     }}
                     className="via-btn via-btn-secondary via-btn-sm"

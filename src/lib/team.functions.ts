@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { getAccessibleBaseUrl } from "@/lib/network.server";
 
 export type TeamMember = {
   user_id: string;
@@ -385,8 +386,7 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
       throw new Error(inviteError?.message || "Erro ao registrar convite.");
     }
 
-    const baseUrl =
-      data.origin || process.env.PUBLIC_BASE_URL || "http://localhost:8080";
+    const baseUrl = getAccessibleBaseUrl(data.origin);
     const link = `${baseUrl}/accept-invite/${invite.token}`;
 
     // 3. Dispara o envio de e-mail usando o Supabase Auth (utiliza o SMTP configurado no Supabase)
@@ -429,4 +429,13 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
       warningMessage,
       link,
     };
+  });
+
+/**
+ * Retorna a URL base acessível na rede local (ex: http://192.168.x.x:8080)
+ * para exibição e cópia de links seguros para acesso por outros dispositivos.
+ */
+export const getNetworkOrigin = createServerFn({ method: "GET" })
+  .handler(async () => {
+    return getAccessibleBaseUrl();
   });

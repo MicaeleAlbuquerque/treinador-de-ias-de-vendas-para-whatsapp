@@ -341,6 +341,9 @@
 }
 .via-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(10,79,149,.15); }
 .dark .via-input:focus { box-shadow: 0 0 0 3px rgba(94, 164, 243, 0.25); }
+.via-input-search {
+  padding-left: 2.35rem !important;
+}
 
 select.via-input option {
   background-color: var(--card);
