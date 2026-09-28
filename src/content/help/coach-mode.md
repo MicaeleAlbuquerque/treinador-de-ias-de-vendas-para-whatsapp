@@ -1,6 +1,6 @@
-# Coach mode (Fase 5)
+# Coach mode
 
-Para cada mensagem do vendedor, o Coach compara contra a base de excelência da operação e devolve um **score 0–100**. Ele avalia tom, ausência de antipadrão, tratamento de objeção e coerência com a etapa.
+Para cada mensagem do vendedor, o Coach compara contra a base de excelência da operação e devolve um **score 0–100**. Ele avalia tom, ausência de antipadrão, tratamento de objeção e coerência com a etapa do atendimento.
 
 ## Base de comparação (em cascata)
 
@@ -16,12 +16,20 @@ O topo de `/app/coach` mostra qual base está em uso ("Comparando contra: Playbo
 
 Além de pontuar mensagens novas em tempo real, o botão **Avaliar histórico** roda o Coach sobre as conversas **já importadas**, das mais recentes para as mais antigas, em **lotes de 20**. Clique quantas vezes precisar até zerar as pendentes — o contador ao lado do botão mostra quantas faltam.
 
-## Alertas
+## Alertas e Últimas saídas do padrão
 
-- Score abaixo do **threshold** (default 60, ajustável por admin em `/app/coach`) gera uma "saída do padrão" e uma notificação para admins.
-- O painel mostra a aderência média por vendedor (7 dias), as últimas saídas do padrão e as notificações.
+- Score abaixo do **threshold** (padrão 60, ajustável por admin em `/app/coach`) gera uma "saída do padrão" e uma notificação para administradores.
+- O painel exibe as **últimas saídas do padrão de forma compacta (máximo de 15 por vez)**, destacando a sugestão de correção da IA, nota de aderência, data e link direto para abrir e auditar a conversa correspondente.
+- Acompanhamento de aderência média semanal por vendedor e feed de notificações recentes.
+
+## Arena de Treinamento (Simulação Interativa)
+
+A aba **Arena de Treinamento** permite que os vendedores pratiquem conversas em um ambiente controlado:
+- **Lead simulado por IA**: gera situações realistas de vendas com base no perfil do seu público e nas objeções do negócio.
+- **Feedback instantâneo**: a cada resposta enviada pelo vendedor, o Coach analisa a mensagem em segundos, pontua de 0 a 100 e aponta melhorias imediatas.
+- **Histórico de simulações**: armazena os treinos realizados para acompanhamento da evolução da equipe.
 
 ## Pré-requisitos
 
 - Pelo menos um **Playbook** gerado (Tier 1) ou um **snapshot de DNA** (Tier 2).
-- Provedor de IA ativo: Lovable AI (Gemini) por padrão, ou OpenAI se você cadastrou a chave em **Conta da IA**. O cap de custo LLM não pode ter sido atingido.
+- Provedor de IA ativo: Lovable AI (Gemini) por padrão, ou OpenAI se você cadastrou a chave em **Configurações → Conta da IA**. O cap de custo LLM não pode ter sido atingido.
