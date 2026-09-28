@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { getAccessibleBaseUrl } from "@/lib/network.server";
+import { getAccessibleBaseUrl, getFunctionalNetworkUrls } from "@/lib/network.server";
 
 export type TeamMember = {
   user_id: string;
@@ -440,6 +440,14 @@ export const getNetworkOrigin = createServerFn({ method: "GET" })
   });
 
 /**
+ * Retorna no máximo 2 URLs de rede física funcionais para acesso multiplataforma.
+ */
+export const listFunctionalNetworks = createServerFn({ method: "GET" })
+  .handler(async () => {
+    return getFunctionalNetworkUrls();
+  });
+
+/**
  * Cadastra um novo membro da equipe diretamente com login e senha (sem depender de link de e-mail).
  * Ideal para testes locais e para adicionar membros rapidamente.
  */
@@ -481,8 +489,7 @@ export const createTeamMemberDirectly = createServerFn({ method: "POST" })
     const userId = newUser.user.id;
 
     // 2. Insere na tabela profiles
-    await supabaseAdmin
-      .from("profiles")
+    await (supabaseAdmin.from("profiles") as any)
       .upsert({
         id: userId,
         display_name: data.name.trim(),
@@ -562,7 +569,7 @@ export const activateInviteDirectly = createServerFn({ method: "POST" })
     }
 
     if (userId) {
-      await supabaseAdmin.from("profiles").upsert({
+      await (supabaseAdmin.from("profiles") as any).upsert({
         id: userId,
         display_name: cleanEmail.split("@")[0],
         role: invite.role === "admin" ? "admin" : "user",

@@ -46,14 +46,15 @@ function SignInPage() {
   );
 }
 
-export function Field({ label, type, value, onChange, required, autoComplete }: {
+export function Field({ label, type, value, onChange, required, autoComplete, placeholder }: {
   label: string; type: string; value: string;
-  onChange: (v: string) => void; required?: boolean; autoComplete?: string;
+  onChange: (v: string) => void; required?: boolean; autoComplete?: string; placeholder?: string;
 }) {
   return (
     <label className="block">
       <span className="via-label">{label}</span>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
         required={required} autoComplete={autoComplete}
         className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-[color:var(--via-blue)] focus:ring-2 focus:ring-[color:var(--via-blue)]/20" />
     </label>

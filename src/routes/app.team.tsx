@@ -493,13 +493,27 @@ function InviteForm() {
     role: string;
   } | null>(null);
 
+  const getNetworkOriginFn = useServerFn(getNetworkOrigin);
+  const networkOriginQ = useQuery({
+    queryKey: ["network-origin"],
+    queryFn: async () => {
+      try {
+        const res = await getNetworkOriginFn({});
+        return res || window.location.origin;
+      } catch {
+        return window.location.origin;
+      }
+    },
+    staleTime: 60000,
+  });
+
   async function handleInviteSubmit(e: FormEvent) {
     e.preventDefault();
     setInviteLoading(true);
 
     try {
       const cleanEmail = email.toLowerCase().trim();
-      const origin = window.location.origin;
+      const origin = networkOriginQ.data || window.location.origin;
 
       const res = await inviteMemberFn({
         data: {
@@ -708,8 +722,9 @@ function InviteForm() {
               <button
                 type="button"
                 onClick={() => {
+                  const base = networkOriginQ.data || window.location.origin;
                   navigator.clipboard.writeText(
-                    `Acesso ao Treinador de Vendas:\nE-mail: ${createdCredentials.email}\nSenha: ${createdCredentials.pass}\nURL: ${window.location.origin}/auth/sign-in`
+                    `Acesso ao Treinador de Vendas:\nE-mail: ${createdCredentials.email}\nSenha: ${createdCredentials.pass}\nURL: ${base}/auth/sign-in`
                   );
                   toast.success("Credenciais copiadas!");
                 }}

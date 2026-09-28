@@ -46,7 +46,7 @@ function sanitize(str: string, secrets: Array<string | null | undefined>): strin
   // Mascara tokens em querystring (?token=XYZ, &apikey=XYZ, etc).
   out = out.replace(/(\?|&)(token|apikey|api_key|key|secret)=[^&"\s]+/gi, "$1$2=***");
   // Mascara Bearer tokens.
-  out = out.replace(/Bearer\s+[A-Za-z0-9._\-]+/gi, "Bearer ***");
+  out = out.replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer ***");
   return out;
 }
 
